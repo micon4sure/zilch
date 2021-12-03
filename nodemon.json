@@ -1,0 +1,6 @@
+{
+    "watch": ["."],
+    "ext": "ts",
+    "ignore": [],
+    "exec": "NODE_ENV=development NODE_OPTIONS=--max_old_space_size=8096 ts-node bot.ts"
+  }

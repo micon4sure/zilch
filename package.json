@@ -1,0 +1,20 @@
+{
+  "name": "zilch",
+  "version": "1.0.0",
+  "description": "",
+  "main": "bot.js",
+  "scripts": {
+    "goes": "nodemon --config \"./nodemon.json\"/"
+  },
+  "author": "mICON",
+  "license": "ISC",
+  "dependencies": {
+    "discord.io": "https://github.com/woor/discord.io/tarball/gateway_v6",
+    "lodash": "^4.17.21",
+    "node-ts": "^5.1.2",
+    "nodemon": "^2.0.15",
+    "ts-node": "^10.4.0",
+    "typescript": "^4.5.2",
+    "winston": "^3.3.3"
+  }
+}
