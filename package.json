@@ -4,7 +4,8 @@
   "description": "",
   "main": "bot.js",
   "scripts": {
-    "goes": "nodemon --config \"./nodemon.json\"/"
+    "goes": "nodemon --config \"./nodemon.json\"/",
+    "test": "nodemon -w test -e ts --exec 'mocha --require ts-node/register test/*.ts' || true"
   },
   "author": "mICON",
   "license": "ISC",
@@ -16,5 +17,10 @@
     "ts-node": "^10.4.0",
     "typescript": "^4.5.2",
     "winston": "^3.3.3"
+  },
+  "devDependencies": {
+    "@types/mocha": "^9.0.0",
+    "chai": "^4.3.4",
+    "mocha": "^9.1.3"
   }
 }

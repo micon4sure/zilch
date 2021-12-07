@@ -32,38 +32,129 @@ bot.on('ready', function (evt) {
   logger.info(bot.username + ' - (' + bot.id + ')');
 });
 
-class Die {
-  face: Number
-  text: String
+
+export class Turn {
+  dice: Number[];
+  points: Number;
+
+  constructor(dice: Number[]) {
+    this.dice = dice;
+    this.points = 0;
+  }
+
+  has(dice: Number[]) {
+    let exclude: Number[] = [];
+
+    _.each(dice, (die, index) => {
+      _.each(this.dice, (candidate, candidateIndex) => {
+        if (_.includes(exclude, candidateIndex)) return null;
+
+        if (candidate == die) {
+          exclude.push(candidateIndex);
+          // return false = break each
+          return false;
+        }
+        return null;
+      });
+      // console.log({
+      //   d: this.dice, dice, exclude
+      // })
+    });
+    return dice.length == exclude.length;
+  }
+
+  take(dice: Number[]) {
+    if (!this.has(dice)) {
+      throw new Error("can't take what I don't have")
+    }
+    let exclude: Number[] = [];
+
+    _.each(dice, (die, index) => {
+      _.each(this.dice, (candidate, candidateIndex) => {
+        if (_.includes(exclude, candidateIndex)) return null;
+
+        if (candidate == die) {
+          exclude.push(candidateIndex);
+          // return false = break each
+          return false;
+        }
+        return null;
+      });
+    });
+    this.dice = _.filter(this.dice, (die, index) => !_.includes(exclude, index));
+  }
+}
+
+export class Token {
+  token: String
   value: Number
-
-  constructor(face: Number, text: String, value: Number) {
-    this.face = face;
-    this.text = text;
+  dice: Number[]
+  constructor(token: String, value: Number, dice: Number[]) {
+    this.token = token;
     this.value = value;
+    this.dice = dice;
   }
 }
 
-class Parser {
-  values: Die[]
+//TODO: rename
+export class Parser {
+  turn: Turn;
+  tokens: Token[]
 
-  constructor() {
-    this.values.push(new Die(1, "ones", 1000));
-    _.each({2: "twos", 3: "threes", 4: "fours", 5: "fives"}, (text, num) => {
-      this.values.push(new Die(num, text, num * 100));
+  constructor(turn: Turn) {
+    this.turn = turn;
+
+    this.tokens = [
+      new Token("one", 100, [1]),
+      new Token("five", 50, [5]),
+    ];
+    let possibilities = [
+      { token: "ones", value: 1000, face: 1 },
+      { token: "twos", value: 200, face: 2 },
+      { token: "threes", value: 300, face: 3 },
+      { token: "fours", value: 400, face: 4 },
+      { token: "fives", value: 500, face: 5 },
+      { token: "sixes", value: 600, face: 6 },
+    ]
+    _.each(possibilities, possibility => {
+      this.tokens.push(new Token(possibility.token, possibility.value, _.times(3, _.constant(possibility.face))));
+      this.tokens.push(new Token(possibility.token + "es", possibility.value * 2, _.times(4, _.constant(possibility.face))));
+      this.tokens.push(new Token(possibility.token + "eses", possibility.value * 4, _.times(5, _.constant(possibility.face))));
+      this.tokens.push(new Token(possibility.token + "eseses", possibility.value * 8, _.times(6, _.constant(possibility.face))));
     })
-    this.values.push(new Die(6, "sixes", 600));
   }
 
-  parse(input) {
-    // parse input for tokens like oneses five
+  parse(text: String, roll: Function, bank: Function) {
+    // split text by spaces
+    let tokens = text.split(" ");
 
-    // check if dice actually deliver those
+    let doRoll = false;
+    let doBank = false;
 
-    // return point value
+    // for all the tokens in the text
+    _.each(tokens, token => {
+      // for all available tokens
+      _.each(this.tokens, candidate => {
+        // if this is a legit token
+        if (token == candidate.token) {
+          // and the token matches the dice
+          if (this.turn.has(candidate.dice)) {
+            // take the dice away from the turn
+            this.turn.take(candidate.dice);
+            // and add the point value
+            this.turn.points += candidate.value;
+          }
+        }
+      });
+
+      if (token == "roll") doRoll = true;
+      else if (token == "bank") doBank = true;;
+    })
+
+    if (doRoll) roll();
+    else if (doBank) bank();
   }
 }
-
 class Player {
   score: Number
   id: String
@@ -76,17 +167,13 @@ class Player {
   }
 }
 
-class Turn {
-  player: Player
-  dice: any
-}
 
 class Game {
   send: Function
   state: State
   players: Player[]
   startedBy: String
-  currentTurn: Turn
+  parser: Parser
 
   constructor(send, starter) {
     this.send = send;
@@ -103,12 +190,11 @@ class Game {
     this.state = State.RUNNING;
     let player = this.players[0];
     this.send(`${player.name}'s turn.`);
-    this.turn();
-    let dice = this.roll(6)
-    this.send(dice)
-  }
+    const turn = new Turn(this.roll(6));
+    this.send(turn.dice)
 
-  turn() {
+    this.parser = new Parser(turn);
+
   }
 
   gather() {
@@ -192,12 +278,6 @@ bot.on('message', function (user, userID, channelID, message, evt) {
   // if message is by current player, send to game to be parsed
 });
 
-game = new Game((msg) => console.log(msg), 1);
-game.join(new Player(1, "mICON"));
-game.start();
-
-game.currentTurn = new Turn();
-  game.currentTurn.dice = [3, 3, 4, 5, 3, 1]
-
-// TODO
-//game.input('one five roll')
+export default {
+  Turn, Game, Player, Parser
+}
