@@ -12,8 +12,7 @@ class Token {
   }
 }
 
-//TODO: rename
-class Parser {
+class Action {
   turn: Turn;
   tokens: Token[]
 
@@ -40,12 +39,26 @@ class Parser {
     })
   }
 
-  parse(text: String, roll: Function = null, bank: Function = null) {
+  actionPossible() {
+    let possible = false;
+    _.each(this.tokens, candidate => {
+      if (this.turn.has(candidate.dice)) {
+        possible = true;
+        return false;
+      }
+      return true;
+    });
+    return possible;
+  }
+
+  parse(text: String, roll: Function, bank: Function, zilch: Function) {
     // split text by spaces
     let tokens = text.split(" ");
 
     let doRoll = false;
     let doBank = false;
+
+    let taken = false;
 
     // for all the tokens in the text
     _.each(tokens, token => {
@@ -59,22 +72,18 @@ class Parser {
             this.turn.take(candidate.dice);
             // and add the point value
             this.turn.points += candidate.value;
+            taken = true;
           }
         }
       });
 
       if (token == "roll") doRoll = true;
-      else if (token == "bank") doBank = true;;
+      else if (token == "bank") doBank = true;
     })
 
-    if (doRoll && roll === null)
-      throw new Error("No roll callback")
-    if (doBank && bank === null)
-      throw new Error("No bank callback")
-
-    if (doRoll) roll();
+    if (doRoll && taken) roll();
     else if (doBank) bank();
   }
 }
 
-export default Parser;
+export default Action;

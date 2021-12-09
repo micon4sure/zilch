@@ -3,8 +3,8 @@ const _ = require('lodash')
 import {describe, expect, it } from '@jest/globals'
 
 
-import Parser from '../src/Parser'
-import { Turn } from '../src/Game'
+import Action from '../src/Action'
+import { Game, Turn, Player } from '../src/Game'
 
 describe('Turn', () => {
   it("recognises one", () => {
@@ -29,8 +29,17 @@ describe('Turn', () => {
 describe("Parser", () => {
   it("takes oneses", () => {
     let turn = new Turn([1, 6, 1, 1, 4, 1]);
-    let parser = new Parser(turn)
-    parser.parse("oneses");
+    let parser = new Action(turn)
+    parser.parse("oneses", null, null, null);
     console.log(turn)
   });
+})
+
+describe("Game", () => {
+  it("starts", () => {
+    let game = new Game((msg) => console.log(msg), 1);
+    game.gather();
+    game.join(new Player(1, "mICON"));
+    game.start();
+  })
 })

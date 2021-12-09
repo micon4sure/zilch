@@ -1,35 +1,24 @@
+import _ from 'lodash'
+import { Game, Turn, State, Player } from './Game'
+
 const CHANNEL = "915147813761978398"
-
-enum State {
-  IDLE, GATHER, RUNNING
-}
-
-let _ = require('lodash')
-
-var Discord = require('discord.io');
-var logger = require('winston');
-var auth = require('./auth.json');
-// Configure logger settings
-logger.remove(logger.transports.Console);
-logger.add(new logger.transports.Console, {
-  colorize: true
+const Discord = require('discord.io');
+const auth = require('../auth.json');
+let bot = new Discord.Client({
+  token: auth.token,
+  autorun: true
 });
-logger.level = 'debug';
-// Initialize Discord Bot
-// var bot = new Discord.Client({
-//   token: auth.token,
-//   autorun: true
-// });
-let bot = {
-  on(evt: any, callback: any)  {},
-  sendMessage(msg) {},
-  username: String,
-  id: String
-}
+
+// DUMMY BOT
+// let bot = {
+//   on(evt: any, callback: any)  {},
+//   sendMessage(msg) {},
+//   username: String,
+//   id: String
+// }
+
 bot.on('ready', function (evt) {
-  logger.info('Connected');
-  logger.info('Logged in as: ');
-  logger.info(bot.username + ' - (' + bot.id + ')');
+  console.log(`Connected and logged in as ${bot.username}`);
 });
 
 
@@ -100,8 +89,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
   }
 
   // if message is by current player, send to game to be parsed
+  if (game.isActivePlayer(userID)) {
+    game.input(message);
+  }
 });
-
-export default {
-  Turn, Game, Player, Parser
-}

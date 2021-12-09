@@ -1,13 +1,13 @@
 import _ from 'lodash'
 
-import Parser from './Parser'
+import Action from './Action'
 
-enum State {
-  IDLE, GATHER, RUNNING
+export enum State {
+  IDLE, GATHER, RUNNING, ENDING
 }
 
-class Player {
-  score: Number
+export class Player {
+  score: number
   id: String
   name: String
 
@@ -18,17 +18,22 @@ class Player {
   }
 }
 
-class Game {
-  send: Function
-  state: State
-  players: Player[]
-  startedBy: String
-  parser: Parser
+export class Game {
+  send: Function;
+  state: State;
+  players: Player[];
+  startedBy: String;
+  action: Action;
+  turn: Turn;
+  player: Player;
+  playerNum: number = -1;
+  ender: number;
 
-  constructor(send, starter) {
+  constructor(send, starterID) {
     this.send = send;
     this.state = State.IDLE;
     this.players = []
+    this.startedBy = starterID;
   }
 
   join(player: Player) {
@@ -38,13 +43,31 @@ class Game {
 
   start() {
     this.state = State.RUNNING;
-    let player = this.players[0];
-    this.send(`${player.name}'s turn.`);
-    const turn = new Turn(this.roll(6));
-    this.send(turn.dice)
+    this.playerNum = -1;
+    this.next();
+  }
+  next() {
+    if(this.playerNum + 1 >= this.players.length) {
+      this.playerNum = -1;
+    }
+    if (this.state == State.ENDING && this.ender == this.playerNum +1) {
+      let winner = _.reverse(_.orderBy(this.players, 'score'))[0];
+      this.send(`${winner.name} wins the round with a score of ${winner.score}! Very good.`);
+      this.state = State.IDLE;
+      this.players = [];
+      this.playerNum = -1;
+      this.ender = undefined;
+      return;
+    }
+    this.player = this.players[++this.playerNum];
+    this.send(`${this.player.name}'s turn. (${this.player.score})`);
+    this.turn = new Turn(this.roll(6));
+    this.send(this.turn.dice)
 
-    this.parser = new Parser(turn);
-
+    this.action = new Action(this.turn);
+    if (!this.action.actionPossible()) {
+      this.next();
+    }
   }
 
   gather() {
@@ -57,20 +80,49 @@ class Game {
     });
   }
 
+  isActivePlayer(id: String) {
+    if (!this.player) return false;
+    return this.player.id == id;
+  }
+
+  input(input: String) {
+    let parser = new Action(this.turn);
+
+    parser.parse(input, () => {
+      // roll callback
+      this.turn.dice = this.roll(this.turn.dice.length);
+      this.send(this.turn.dice);
+      if (!this.action.actionPossible()) {
+        this.next();
+      }
+    }, () => {
+      // bank callback
+      this.player.score += this.turn.points
+      if (this.player.score >= 10000) {
+        this.state = State.ENDING;
+        this.ender = this.playerNum;
+        this.send(`${this.player.name} cracked 10k. Last chance to win!`)
+      }
+      this.next();
+    }, () => {
+      // zilch callback
+      this.next();
+    });
+  }
 }
 
 
 export class Turn {
-  dice: Number[];
-  points: Number;
+  dice: number[];
+  points: number;
 
-  constructor(dice: Number[]) {
+  constructor(dice: number[]) {
     this.dice = dice;
     this.points = 0;
   }
 
-  has(dice: Number[]) {
-    let exclude: Number[] = [];
+  has(dice: number[]) {
+    let exclude: number[] = [];
 
     _.each(dice, (die, index) => {
       _.each(this.dice, (candidate, candidateIndex) => {
@@ -78,19 +130,16 @@ export class Turn {
 
         if (candidate == die) {
           exclude.push(candidateIndex);
-          // return false = break each
+          // return false -> break _.each
           return false;
         }
         return null;
       });
-      // console.log({
-      //   d: this.dice, dice, exclude
-      // })
     });
     return dice.length == exclude.length;
   }
 
-  take(dice: Number[]) {
+  take(dice: number[]) {
     if (!this.has(dice)) {
       throw new Error("can't take what I don't have")
     }

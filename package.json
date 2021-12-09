@@ -4,7 +4,7 @@
   "description": "",
   "main": "bot.js",
   "scripts": {
-    "goes": "nodemon --config \"./nodemon.json\"/",
+    "goes": "nodemon --exec ts-node src/bot.ts",
     "test": "nodemon -w test -w src -e ts --exec jest"
   },
   "author": "mICON",
