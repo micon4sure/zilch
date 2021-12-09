@@ -5,7 +5,7 @@
   "main": "bot.js",
   "scripts": {
     "goes": "nodemon --config \"./nodemon.json\"/",
-    "test": "nodemon -w test -e ts --exec 'mocha --require ts-node/register test/*.ts' || true"
+    "test": "nodemon -w test -w src -e ts --exec jest"
   },
   "author": "mICON",
   "license": "ISC",
@@ -19,8 +19,13 @@
     "winston": "^3.3.3"
   },
   "devDependencies": {
+    "@babel/core": "^7.16.0",
+    "@babel/preset-env": "^7.16.4",
+    "@babel/preset-typescript": "^7.16.0",
     "@types/mocha": "^9.0.0",
+    "babel-jest": "^27.4.2",
     "chai": "^4.3.4",
+    "jest": "^27.4.3",
     "mocha": "^9.1.3"
   }
 }
