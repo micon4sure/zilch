@@ -43,3 +43,20 @@ describe("Game", () => {
     game.start();
   })
 })
+
+import Sender from '../src/Sender'
+describe("Sender", () => {
+  it("sends", async () => {
+    let callback = (msg) => console.log(msg);
+
+    let sender = new Sender(callback);
+
+    sender.send("1")
+    sender.send("2")
+    sender.send("3")
+    sender.send("4")
+    await sender.send("5")
+    await sender.send("6")
+    
+  });
+});

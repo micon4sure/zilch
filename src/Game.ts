@@ -2,6 +2,25 @@ import _ from 'lodash'
 
 import Action from './Action'
 
+const mapDieFace = (die) => {
+  return die;
+  switch (die) {
+    case 1:
+      return "⚀";
+    case 2:
+      return "⚁";
+    case 3:
+      return "⚂";
+    case 4:
+      return "⚃";
+    case 5:
+      return "⚄";
+    case 6:
+      return "⚅";
+  }
+  return "..."
+}
+
 export enum State {
   IDLE, GATHER, RUNNING, ENDING
 }
@@ -28,12 +47,14 @@ export class Game {
   player: Player;
   playerNum: number = -1;
   ender: number;
+  limit: number;
 
-  constructor(send, starterID) {
+  constructor(send: Function, starterID: String, limit: number) {
     this.send = send;
     this.state = State.IDLE;
     this.players = []
     this.startedBy = starterID;
+    this.limit = limit;
   }
 
   join(player: Player) {
@@ -47,10 +68,10 @@ export class Game {
     this.next();
   }
   next() {
-    if(this.playerNum + 1 >= this.players.length) {
+    if (this.playerNum + 1 >= this.players.length) {
       this.playerNum = -1;
     }
-    if (this.state == State.ENDING && this.ender == this.playerNum +1) {
+    if (this.state == State.ENDING && this.ender == this.playerNum + 1) {
       let winner = _.reverse(_.orderBy(this.players, 'score'))[0];
       this.send(`${winner.name} wins the round with a score of ${winner.score}! Very good.`);
       this.state = State.IDLE;
@@ -62,7 +83,7 @@ export class Game {
     this.player = this.players[++this.playerNum];
     this.send(`${this.player.name}'s turn. (${this.player.score})`);
     this.turn = new Turn(this.roll(6));
-    this.send(this.turn.dice)
+    this.send(_.join(this.turn.dice, " "));
 
     this.action = new Action(this.turn);
     if (!this.action.actionPossible()) {
@@ -86,28 +107,36 @@ export class Game {
   }
 
   input(input: String) {
-    let parser = new Action(this.turn);
+    let action = new Action(this.turn);
 
-    parser.parse(input, () => {
+    // can only roll if taken some time this turn
+    //TODO: clarify Turn  into subturns (rolls)
+    let taken = this.action.parse(input, (taken) => {
+      console.log("roll?", taken, this.turn.canRoll)
+      if (!this.turn.canRoll && !taken) return;
+      this.turn.canRoll = false;
+
       // roll callback
       this.turn.dice = this.roll(this.turn.dice.length);
-      this.send(this.turn.dice);
+      this.send(this.turn.dice.map(mapDieFace).join(" "));
       if (!this.action.actionPossible()) {
         this.next();
       }
     }, () => {
       // bank callback
       this.player.score += this.turn.points
-      if (this.player.score >= 10000) {
+      if (this.player.score >= this.limit) {
         this.state = State.ENDING;
         this.ender = this.playerNum;
-        this.send(`${this.player.name} cracked 10k. Last chance to win!`)
+        this.send(`${this.player.name} cracked the limit. Last chance to win!`)
       }
       this.next();
     }, () => {
       // zilch callback
+      this.send("ZILCH!");
       this.next();
     });
+    this.turn.canRoll = this.turn.canRoll || taken;
   }
 }
 
@@ -115,6 +144,7 @@ export class Game {
 export class Turn {
   dice: number[];
   points: number;
+  canRoll: boolean = false;
 
   constructor(dice: number[]) {
     this.dice = dice;

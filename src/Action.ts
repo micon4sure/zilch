@@ -61,6 +61,7 @@ class Action {
     let taken = false;
 
     // for all the tokens in the text
+    console.log(tokens)
     _.each(tokens, token => {
       // for all available tokens
       _.each(this.tokens, candidate => {
@@ -80,9 +81,12 @@ class Action {
       if (token == "roll") doRoll = true;
       else if (token == "bank") doBank = true;
     })
+    console.log("doRoll", doRoll)
 
-    if (doRoll && taken) roll();
+    if (doRoll) roll(taken);
     else if (doBank) bank();
+    
+    return taken;
   }
 }
 
