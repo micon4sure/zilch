@@ -82,19 +82,18 @@ export class Game {
     }
     this.player = this.players[++this.playerNum];
     this.send(`${this.player.name}'s turn. (${this.player.score})`);
-    this.turn = new Turn(this.roll(6));
+    this.turn = new Turn(Game.roll(6));
     this.send(_.join(this.turn.dice, " "));
-
-    this.action = new Action(this.turn);
-    if (!this.action.actionPossible()) {
-      this.next();
-    }
+    this.action = new Action(this.turn, (turn) => {
+      turn.dice = Game.roll(turn.dice.length)
+      this.send(this.turn.dice.join(" "));
+    });
   }
 
   gather() {
     this.state = State.GATHER;
   }
-  roll(times) {
+  static roll(times) {
     return _.times(times, () => {
       let num = Math.random() * 6;
       return Math.ceil(num)
@@ -106,45 +105,94 @@ export class Game {
     return this.player.id == id;
   }
 
+  /**
+   * Take player input, tokenize and take action on it.
+   * If Roll is part of that input, fire it last.
+   * @param input player input
+   */
   input(input: String) {
-    let action = new Action(this.turn);
-
-    // can only roll if taken some time this turn
-    //TODO: clarify Turn  into subturns (rolls)
-    let taken = this.action.parse(input, (taken) => {
-      console.log("roll?", taken, this.turn.canRoll)
-      if (!this.turn.canRoll && !taken) return;
-      this.turn.canRoll = false;
-
-      // roll callback
-      this.turn.dice = this.roll(this.turn.dice.length);
-      this.send(this.turn.dice.map(mapDieFace).join(" "));
-      if (!this.action.actionPossible()) {
-        this.next();
+    let tokens = input.split(" ");
+    let roll = false;
+    let bank = false;
+    let free = false;
+    _.each(tokens, token => {
+      if (token.toLowerCase() == "roll") {
+        roll = true;
+      } else if (token.toLowerCase() == "bank") {
+        bank = true;
+      } else if (token.toLowerCase() == "free") {
+        free = true;
+      } else {
+        this.action.action(token.toLowerCase());
       }
-    }, () => {
-      // bank callback
-      this.player.score += this.turn.points
-      if (this.player.score >= this.limit) {
-        this.state = State.ENDING;
-        this.ender = this.playerNum;
-        this.send(`${this.player.name} cracked the limit. Last chance to win!`)
-      }
-      this.next();
-    }, () => {
-      // zilch callback
-      this.send("ZILCH!");
-      this.next();
     });
-    this.turn.canRoll = this.turn.canRoll || taken;
+
+    if(free) {
+      if (this.turn.dice.length < 6)
+        return;
+
+      free = false;
+
+      if(this.action.isStraight()) {
+        free = true;
+      }
+      else if (!this.action.hasOptions(true)) {
+        free = true;
+      }
+      else if (this.action.isThreePairs()) {
+        free = true;
+      }
+
+      if (free) {
+        this.turn.points += 1500;
+        this.turn.dice = Game.roll(6);
+        this.sendDice();
+      }
+    }
+    if (bank) {
+      this.player.score += this.turn.points;
+      this.next();
+      return;
+    }
+
+    // roll logic
+    else if (roll) {
+      // if no dice have been taken, player is not allowed to roll
+      if (!this.turn.taken.length)
+        return;
+
+      // check if no remaining dice -> new batch
+      if (!this.turn.dice.length) {
+        this.turn.dice = Game.roll(6);
+        this.sendDice();
+        return;
+      }
+
+      // reroll the remaining dice and reset the taken array
+      this.turn.dice = Game.roll(this.turn.dice.length);
+      this.turn.taken = [];
+      this.sendDice();
+
+      // check if no remaining option to the player
+      if (!this.action.hasOptions()) {
+        this.next();
+        return;
+      }
+
+    }
   }
+
+  sendDice() {
+    this.send(this.turn.dice.join(" "));
+  }
+
 }
 
 
 export class Turn {
   dice: number[];
   points: number;
-  canRoll: boolean = false;
+  taken: number[] = [];
 
   constructor(dice: number[]) {
     this.dice = dice;
@@ -173,7 +221,7 @@ export class Turn {
     if (!this.has(dice)) {
       throw new Error("can't take what I don't have")
     }
-    let exclude: Number[] = [];
+    let exclude: number[] = [];
 
     _.each(dice, (die, index) => {
       _.each(this.dice, (candidate, candidateIndex) => {
@@ -188,5 +236,6 @@ export class Turn {
       });
     });
     this.dice = _.filter(this.dice, (die, index) => !_.includes(exclude, index));
+    this.taken = exclude;
   }
 }

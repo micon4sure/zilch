@@ -1,14 +1,35 @@
 import _ from 'lodash'
-import { Turn } from './Game'
+import { Game, Turn } from './Game'
 
 class Token {
   token: String
-  value: Number
-  dice: Number[]
-  constructor(token: String, value: Number, dice: Number[]) {
+  validator: Function
+  callback: Function
+
+  constructor(token: String, validator: Function, callback: Function) {
     this.token = token;
-    this.value = value;
-    this.dice = dice;
+    this.validator = validator;
+    this.callback = callback;
+  }
+
+  validate(turn: Turn) {
+    return this.validator(turn);
+  }
+
+  action(turn: Turn) {
+    this.callback(turn);
+  }
+}
+
+const validatorHasDice = (dice: number[]) => {
+  return (turn: Turn,) => {
+    return turn.has(dice);
+  }
+}
+const callbackDefault = (value: number, dice: number[]) => {
+  return (turn: Turn,) => {
+    turn.take(dice);
+    turn.points += value;
   }
 }
 
@@ -16,13 +37,14 @@ class Action {
   turn: Turn;
   tokens: Token[]
 
-  constructor(turn: Turn) {
+  constructor(turn: Turn, roll: Function) {
     this.turn = turn;
 
     this.tokens = [
-      new Token("one", 100, [1]),
-      new Token("five", 50, [5]),
+      new Token("one", validatorHasDice([1]), callbackDefault(100, [1])),
+      new Token("five", validatorHasDice([5]), callbackDefault(50, [5])),
     ];
+
     let possibilities = [
       { token: "ones", value: 1000, face: 1 },
       { token: "twos", value: 200, face: 2 },
@@ -30,63 +52,123 @@ class Action {
       { token: "fours", value: 400, face: 4 },
       { token: "fives", value: 500, face: 5 },
       { token: "sixes", value: 600, face: 6 },
-    ]
+    ];
     _.each(possibilities, possibility => {
-      this.tokens.push(new Token(possibility.token, possibility.value, _.times(3, _.constant(possibility.face))));
-      this.tokens.push(new Token(possibility.token + "es", possibility.value * 2, _.times(4, _.constant(possibility.face))));
-      this.tokens.push(new Token(possibility.token + "eses", possibility.value * 4, _.times(5, _.constant(possibility.face))));
-      this.tokens.push(new Token(possibility.token + "eseses", possibility.value * 8, _.times(6, _.constant(possibility.face))));
+      let dice = _.times(3, _.constant(possibility.face));
+      this.tokens.push(new Token(
+        possibility.token,
+        validatorHasDice(dice),
+        callbackDefault(possibility.value, dice)
+      ));
+    });
+
+    _.each(possibilities, possibility => {
+      let dice = _.times(4, _.constant(possibility.face));
+      this.tokens.push(new Token(
+        possibility.token + "es",
+        validatorHasDice(dice),
+        callbackDefault(possibility.value * 2, dice)
+      ));
     })
+
+    _.each(possibilities, possibility => {
+      let dice = _.times(5, _.constant(possibility.face));
+      this.tokens.push(new Token(
+        possibility.token + "eses",
+        validatorHasDice(dice),
+        callbackDefault(possibility.value * 4, dice)
+      ));
+    })
+
+    _.each(possibilities, possibility => {
+      let dice = _.times(6, _.constant(possibility.face));
+      this.tokens.push(new Token(
+        possibility.token + "eseses",
+        validatorHasDice(dice),
+        callbackDefault(possibility.value * 8, dice)
+      ));
+    });
+
+    this.tokens.push(new Token("free",
+      // free validator
+      (turn: Turn) => {
+        if (turn.dice.length == 6 && !this.hasOptions(true))
+          return true;
+
+        if (this.isThreePairs())
+          return true;
+      },
+      // free callback
+      (turn: Turn) => {
+        if (turn.dice.length == 6 && !this.hasOptions(true)) {
+          turn.points += 1500;
+        } else if (this.isThreePairs()) {
+          turn.points += 1000;
+        }
+        turn.dice = Game.roll(6);
+      }
+    ))
   }
 
-  actionPossible() {
-    let possible = false;
+  action(token: String) {
     _.each(this.tokens, candidate => {
-      if (this.turn.has(candidate.dice)) {
-        possible = true;
+      if (candidate.token != token)
+        return;
+      if (!candidate.validate(this.turn))
+        return;
+      candidate.action(this.turn);
+    });
+  }
+
+  hasOptions(skipFree = false) {
+    let options = false;
+    _.each(this.tokens, token => {
+      if (skipFree && token.token == "free") {
+        return;
+      }
+      if (token.validate(this.turn)) {
+        options = true;
         return false;
       }
-      return true;
     });
-    return possible;
+
+    return options;
   }
 
-  parse(text: String, roll: Function, bank: Function, zilch: Function) {
-    // split text by spaces
-    let tokens = text.split(" ");
+  isThreePairs() {
+    if (this.turn.dice.length < 6)
+      return false;
+    let dice = _.clone(this.turn.dice);
 
-    let doRoll = false;
-    let doBank = false;
 
-    let taken = false;
-
-    // for all the tokens in the text
-    console.log(tokens)
-    _.each(tokens, token => {
-      // for all available tokens
-      _.each(this.tokens, candidate => {
-        // if this is a legit token
-        if (token == candidate.token) {
-          // and the token matches the dice
-          if (this.turn.has(candidate.dice)) {
-            // take the dice away from the turn
-            this.turn.take(candidate.dice);
-            // and add the point value
-            this.turn.points += candidate.value;
-            taken = true;
-          }
-        }
-      });
-
-      if (token == "roll") doRoll = true;
-      else if (token == "bank") doBank = true;
+    let num = dice.shift();
+    _.each(dice, (die, index) => {
+      if (die == num) {
+        dice = _.filter(dice, (die, idx) => idx != index);
+        return false;
+      }
     })
-    console.log("doRoll", doRoll)
+    if (dice.length == 5) {
+      return false;
+    }
 
-    if (doRoll) roll(taken);
-    else if (doBank) bank();
-    
-    return taken;
+    num = dice.shift();
+    _.each(dice, (die, index) => {
+      if (die == num) {
+        dice = _.filter(dice, (die, idx) => idx != index);
+        return false;
+      }
+    })
+    if (dice.length == 3) {
+      return false;
+    }
+
+    num = dice.shift();
+    return dice[0] == num;
+  }
+
+  isStraight() {
+    return _.uniq(this.turn.dice).length == 6;
   }
 }
 

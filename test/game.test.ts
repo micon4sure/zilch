@@ -1,62 +1,39 @@
 const _ = require('lodash')
 
-import {describe, expect, it } from '@jest/globals'
+import { describe, expect, it } from '@jest/globals'
 
 
 import Action from '../src/Action'
 import { Game, Turn, Player } from '../src/Game'
 
-describe('Turn', () => {
-  it("recognises one", () => {
-    let turn = new Turn([1, 6, 2, 5, 3, 5]);
-    expect(turn.has([1])).toBe(true);
-    expect(turn.has([1, 1])).toBe(false);
-  })
-
-  it("takes one", () => {
-    let turn = new Turn([1, 6, 2, 5, 3, 5]);
-    turn.take([1])
-    expect(turn.dice).toStrictEqual([6, 2, 5, 3, 5]);
-  })
-
-  it("takes oneses", () => {
-    let turn = new Turn([1, 6, 1, 1, 4, 5]);
-    turn.take([1, 1, 1])
-    expect(turn.dice).toStrictEqual([6, 4, 5]);
-  })
-})
-
-describe("Parser", () => {
-  it("takes oneses", () => {
-    let turn = new Turn([1, 6, 1, 1, 4, 1]);
-    let parser = new Action(turn)
-    parser.parse("oneses", null, null, null);
-    console.log(turn)
-  });
-})
-
 describe("Game", () => {
   it("starts", () => {
-    let game = new Game((msg) => console.log(msg), 1);
+    let game = new Game((msg) => console.log(msg), "1", 500);
     game.gather();
-    game.join(new Player(1, "mICON"));
+    game.join(new Player("1", "mICON"));
+    game.join(new Player("2", "satellite"))
     game.start();
+
+    game.turn.dice = [1, 1, 3, 5, 2, 1];
+    console.log(game.turn.dice)
+
+    game.input("ones roll");
+    console.log(game.turn.dice)
   })
 })
 
-import Sender from '../src/Sender'
-describe("Sender", () => {
-  it("sends", async () => {
-    let callback = (msg) => console.log(msg);
+describe("Action", () => {
+  it("knows three pairs", () => {
+    expect(new Action(new Turn([1, 2, 3, 4, 5, 6]), () => {}).isThreePairs()).toBe(false)
 
-    let sender = new Sender(callback);
+    expect(new Action(new Turn([2, 2, 3, 3, 4, 4]), () => {}).isThreePairs()).toBe(true)
+    expect(new Action(new Turn([2, 3, 3, 2, 4, 4]), () => {}).isThreePairs()).toBe(true)
+    expect(new Action(new Turn([2, 4, 2, 4, 6, 6]), () => {}).isThreePairs()).toBe(true)
+  });
 
-    sender.send("1")
-    sender.send("2")
-    sender.send("3")
-    sender.send("4")
-    await sender.send("5")
-    await sender.send("6")
-    
+  it("knows straight", () => {
+    expect(new Action(new Turn([6, 1, 3, 2, 5, 4]), () => {}).isStraight()).toBe(true)
+
+    expect(new Action(new Turn([6, 2, 3, 2, 5, 4]), () => {}).isStraight()).toBe(false)
   });
 });
