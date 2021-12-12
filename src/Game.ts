@@ -1,25 +1,7 @@
 import _ from 'lodash'
 
 import Action from './Action'
-
-const mapDieFace = (die) => {
-  return die;
-  switch (die) {
-    case 1:
-      return "⚀";
-    case 2:
-      return "⚁";
-    case 3:
-      return "⚂";
-    case 4:
-      return "⚃";
-    case 5:
-      return "⚄";
-    case 6:
-      return "⚅";
-  }
-  return "..."
-}
+import convertDiceToSVG from './convert'
 
 export enum State {
   IDLE, GATHER, RUNNING, ENDING
@@ -83,10 +65,10 @@ export class Game {
     this.player = this.players[++this.playerNum];
     this.send(`${this.player.name}'s turn. (${this.player.score})`);
     this.turn = new Turn(Game.roll(6));
-    this.send(_.join(this.turn.dice, " "));
+    this.sendDice();
     this.action = new Action(this.turn, (turn) => {
       turn.dice = Game.roll(turn.dice.length)
-      this.send(this.turn.dice.join(" "));
+      this.sendDice();
     });
   }
 
@@ -127,13 +109,13 @@ export class Game {
       }
     });
 
-    if(free) {
+    if (free) {
       if (this.turn.dice.length < 6)
         return;
 
       free = false;
 
-      if(this.action.isStraight()) {
+      if (this.action.isStraight()) {
         free = true;
       }
       else if (!this.action.hasOptions(true)) {
@@ -183,9 +165,8 @@ export class Game {
   }
 
   sendDice() {
-    this.send(this.turn.dice.join(" "));
+    this.send({ files: [convertDiceToSVG(this.turn.dice)] });
   }
-
 }
 
 

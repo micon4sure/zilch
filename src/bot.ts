@@ -1,7 +1,8 @@
 import _ from 'lodash'
-import { Client, Intents } from 'discord.js'
+import { Client, Intents, MessageEmbed } from 'discord.js'
 
 import { Game, Turn, State, Player } from './Game'
+import convertDiceToSVG from './convert'
 import Sender from './Sender'
 //TODO repurpose instance, don't create new on !start
 let game = new Game(null, null, 0);
@@ -9,12 +10,13 @@ let game = new Game(null, null, 0);
 const CHANNEL = "915147813761978398"
 const auth = require('../auth.json');
 
-const bot = new Client({intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES]});
+const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES] });
 bot.login(auth.token)
 bot.on('ready', function (evt) {
   console.log(`Connected and logged in.`);
 });
-bot.on('messageCreate', message => {
+
+bot.on('messageCreate', async message => {
   let { channelId, author, content } = message;
   if (channelId != CHANNEL) {
     return;
@@ -40,11 +42,8 @@ bot.on('messageCreate', message => {
     };
     switch (command) {
       case "test":
-        let sendClosure = (message) => {
-          send(message);
-        }
         send("goes!")
-        game = new Game(sendClosure, author.id, 500);
+        game = new Game(send, author.id, 500);
         game.gather();
         game.join(new Player("526469115372634122", "mICON"))
         game.join(new Player("866599161868320779", "satellite"))
@@ -53,10 +52,7 @@ bot.on('messageCreate', message => {
       case "start":
         handle(
           () => {
-            let sendClosure = (message) => {
-              send(message);
-            }
-            game = new Game(sendClosure, author.id, 10000);
+            game = new Game(send, author.id, 10000);
             game.gather();
             game.join(new Player(author.id, author.username))
             send("game started. _!join_ up everyone..")
@@ -65,17 +61,14 @@ bot.on('messageCreate', message => {
           () => send("game is running, shut up for a second.")
         )
         break;
-      case "!reset":
-          if (author.id != "526469115372634122") return;
-          game.state = State.IDLE;
+      case "reset":
+        if (author.id != "526469115372634122") return;
+        game.state = State.IDLE;
         break;
       case "rapid":
         handle(
           () => {
-            let sendClosure = (message) => {
-              send(message);
-            }
-            game = new Game(sendClosure, author.id, 3000);
+            game = new Game(send, author.id, 3000);
             game.gather();
             game.join(new Player(author.id, author.username))
             send("rapid game started. Limit 3000. Let's go, _!join_ up everyone..")
