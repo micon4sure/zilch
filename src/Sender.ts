@@ -12,7 +12,7 @@ export default class Sender {
         this.callback(message);
         this.wait--;
         resolve(true);
-      }, 100 * this.wait++);
+      }, 500 * this.wait++);
     });
   }
 }
