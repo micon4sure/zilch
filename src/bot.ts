@@ -55,10 +55,10 @@ bot.on('messageCreate', async message => {
             game = new Game(send, author.id, 10000);
             game.gather();
             game.join(new Player(author.id, author.username))
-            send("game started. _!join_ up everyone..")
+            send("started. !join up")
           },
-          () => send("round has already been started, just !join up."),
-          () => send("game is running, shut up for a second.")
+          () => send("round already started, `!join` up."),
+          () => send("game is running.")
         )
         break;
       case "reset":
@@ -71,32 +71,44 @@ bot.on('messageCreate', async message => {
             game = new Game(send, author.id, 3000);
             game.gather();
             game.join(new Player(author.id, author.username))
-            send("rapid game started. Limit 3000. Let's go, _!join_ up everyone..")
+            send("rapid started: 3000. `!join` up")
           },
-          () => send("round has already been started, just !join up."),
-          () => send("game is running, shut up for a second.")
+          () => send("round started, `!join` up"),
+          () => send("game is running")
+        )
+        break;
+      case "custom":
+        handle(
+          () => {
+            game = new Game(send, author.id, parseInt(chunks[1]));
+            game.gather();
+            game.join(new Player(author.id, author.username))
+            send(`started: ${chunks[1]}. \`!join\` up`);
+          },
+          () => send("round started, `!join` up"),
+          () => send("game is running")
         )
         break;
       case "join":
         handle(
-          () => send("no game running to start. Type !start if you want to begin a new one."),
+          () => send("no game running. go `!start`"),
           () => {
             game.join(new Player(author.id, author.username));
-            send("ok, joined.")
+            send("joined.")
           },
-          () => send("game is running, shut up for a second.")
+          () => send("game is running.")
 
         )
         break;
       case "goes":
         handle(
-          () => send("no gather active to start. Type !start if you want to start a gather"),
+          () => send("no gather active. Go `!start`"),
           () => {
-            if (game.startedBy != author.id) return send("only round starter can begin the game")
+            if (game.startedBy != author.id) return send("only round starter can `!goes`")
             game.start();
             send("goes.")
           },
-          () => send("game is already running, fool!")
+          () => send("game already running.")
         )
         break;
     }

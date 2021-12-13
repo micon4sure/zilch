@@ -28,7 +28,7 @@ export class Game {
   turn: Turn;
   player: Player;
   playerNum: number = -1;
-  ender: number;
+  ender: String;
   limit: number;
 
   constructor(send: Function, starterID: String, limit: number) {
@@ -53,17 +53,18 @@ export class Game {
     if (this.playerNum + 1 >= this.players.length) {
       this.playerNum = -1;
     }
-    if (this.state == State.ENDING && this.ender == this.playerNum + 1) {
+    this.player = this.players[++this.playerNum];
+    
+    if (this.state == State.ENDING && this.ender == this.player.id) {
       let winner = _.reverse(_.orderBy(this.players, 'score'))[0];
-      this.send(`${winner.name} wins the round with a score of ${winner.score}! Very good.`);
+      this.send(`${winner.name} wins! (${winner.score}).`);
       this.state = State.IDLE;
       this.players = [];
       this.playerNum = -1;
       this.ender = undefined;
       return;
     }
-    this.player = this.players[++this.playerNum];
-    this.send(`${this.player.name}'s turn. (${this.player.score})`);
+    this.send(`${this.player.name} (${this.player.score})`);
     this.turn = new Turn(Game.roll(6));
     this.sendDice();
     this.action = new Action(this.turn, (turn) => {
@@ -128,13 +129,25 @@ export class Game {
       if (free) {
         this.turn.points += 1500;
         this.turn.dice = Game.roll(6);
+        this.send('$' + this.turn.points);
         this.sendDice();
       }
     }
     if (bank) {
-      this.player.score += this.turn.points;
-      this.next();
-      return;
+      if (this.turn.points < 300) {
+        this.send("No: < 300.");
+      } else {
+        this.player.score += this.turn.points;
+        this.send(`+${this.turn.points} -> $${this.player.score}`);
+        
+        if (this.player.score > this.limit) {
+          this.ender = this.player.id;
+          this.state = State.ENDING;
+          this.send(`${this.player.name} @ ${this.player.score} > ${this.limit}!`);
+        }
+        this.next();
+        return;
+      }
     }
 
     // roll logic
@@ -146,6 +159,7 @@ export class Game {
       // check if no remaining dice -> new batch
       if (!this.turn.dice.length) {
         this.turn.dice = Game.roll(6);
+        this.send('$' + this.turn.points);
         this.sendDice();
         return;
       }
@@ -157,6 +171,7 @@ export class Game {
 
       // check if no remaining option to the player
       if (!this.action.hasOptions()) {
+        this.send("ZILCH!");
         this.next();
         return;
       }
@@ -165,6 +180,7 @@ export class Game {
   }
 
   sendDice() {
+    //this.send(this.turn.dice.join(" "))
     this.send({ files: [convertDiceToSVG(this.turn.dice)] });
   }
 }
