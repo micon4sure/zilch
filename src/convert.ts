@@ -17,7 +17,6 @@ const mapDieFace = (die) => {
     case 6:
       return "⚅";
   }
-  return "..."
 }
 
 export default function convertDiceToSVG(dice: number[]) {
@@ -25,7 +24,7 @@ export default function convertDiceToSVG(dice: number[]) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="350" height="42">
                 <g id="template">
                   <rect id="background" width="350" height="42" transform="translate(208 209)" fill="#232323"/>
-                  <text id="dice" transform="translate(0 42)" fill="#fff" font-size="42" font-family="SegoeUI, Segoe UI"><tspan x="0" y="0">${emoji}</tspan></text>
+                  <text id="dice" transform="translate(0 42)" fill="#fff" font-size="42" font-family="Consolas, Segoe UI"><tspan x="0" y="0">${emoji}</tspan></text>
                 </g>
               </svg>`;
   const buffer = svg2png.sync(Buffer.from(svg, "utf-8"))

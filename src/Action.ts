@@ -42,6 +42,7 @@ class Action {
 
     this.tokens = [
       new Token("one", validatorHasDice([1]), callbackDefault(100, [1])),
+      new Token("ibe", validatorHasDice([1]), callbackDefault(100, [1])),
       new Token("five", validatorHasDice([5]), callbackDefault(50, [5])),
     ];
 

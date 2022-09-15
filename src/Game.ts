@@ -11,6 +11,8 @@ export class Player {
   score: number
   id: String
   name: String
+  zilch: number = 0;
+  eliminated: boolean = false;
 
   constructor(id, name) {
     this.score = 0;
@@ -53,18 +55,32 @@ export class Game {
     if (this.playerNum + 1 >= this.players.length) {
       this.playerNum = -1;
     }
-    this.player = this.players[++this.playerNum];
-    
-    if (this.state == State.ENDING && this.ender == this.player.id) {
+
+    const end = () => {
       let winner = _.reverse(_.orderBy(this.players, 'score'))[0];
-      this.send(`${winner.name} wins! (${winner.score}).`);
+      this.send(`${winner.name} wins! ($${winner.score}).`);
       this.state = State.IDLE;
       this.players = [];
       this.playerNum = -1;
       this.ender = undefined;
+    };
+
+    this.player = this.players[++this.playerNum];
+    let eliminated = 0;
+    while (this.player.eliminated) {
+      this.player = this.players[++this.playerNum];
+      eliminated++;
+      if (eliminated == this.players.length) {
+        end();
+        return;
+      }
+    }
+    
+    if (this.state == State.ENDING && this.ender == this.player.id) {
+      end();
       return;
     }
-    this.send(`${this.player.name} (${this.player.score})`);
+    this.send(`<@${this.player.id}> ($${this.player.score})`);
     this.turn = new Turn(Game.roll(6));
     this.sendDice();
     this.action = new Action(this.turn, (turn) => {
@@ -98,9 +114,30 @@ export class Game {
     let roll = false;
     let bank = false;
     let free = false;
+
+    let result = input.match(/^(?<dice>[15]{1,4})(?<rollbank>[rb])$/)
+    if (result !== null) {
+      tokens = []
+      _.each(result.groups['dice'], (die) => {
+        tokens.push(die == 1 ? 'one' : 'five');
+      })
+      tokens.push(result.groups['rollbank'] == 'r' ? 'roll' : 'bank');
+    }
+
     _.each(tokens, token => {
-      if (token.toLowerCase() == "roll") {
+      if(token.toLowerCase() == "onro") {
+        this.action.action("one")
         roll = true;
+      } else if(token.toLowerCase() == "firo") {
+        this.action.action("five")
+        roll = true;
+      } else if (token.toLowerCase() == "roll" || token.toLowerCase() == "rikk") {
+        roll = true;
+      } else if (token.toLowerCase() == "roll?") {
+        if (Math.random() > .5)
+          roll = true
+        else
+          bank = true
       } else if (token.toLowerCase() == "bank") {
         bank = true;
       } else if (token.toLowerCase() == "free") {
@@ -129,7 +166,7 @@ export class Game {
       if (free) {
         this.turn.points += 1500;
         this.turn.dice = Game.roll(6);
-        this.send('$' + this.turn.points);
+        this.send('$' + this.turn.points + ' ($' + (this.player.score + this.turn.points) + ')');
         this.sendDice();
       }
     }
@@ -137,13 +174,14 @@ export class Game {
       if (this.turn.points < 300) {
         this.send("No: < 300.");
       } else {
+        this.player.zilch = 0;
         this.player.score += this.turn.points;
-        this.send(`+${this.turn.points} -> $${this.player.score}`);
+        this.send(`+$${this.turn.points} -> $${this.player.score}`);
         
-        if (this.player.score > this.limit) {
+        if (this.player.score >= this.limit && this.state != State.ENDING) {
           this.ender = this.player.id;
           this.state = State.ENDING;
-          this.send(`${this.player.name} @ ${this.player.score} > ${this.limit}!`);
+          this.send(`${this.player.name} @ $${this.player.score} >= $${this.limit}!`);
         }
         this.next();
         return;
@@ -159,7 +197,7 @@ export class Game {
       // check if no remaining dice -> new batch
       if (!this.turn.dice.length) {
         this.turn.dice = Game.roll(6);
-        this.send('$' + this.turn.points);
+        this.send('$' + this.turn.points + ' ($' + (this.player.score + this.turn.points) + ')');
         this.sendDice();
         return;
       }
@@ -167,21 +205,37 @@ export class Game {
       // reroll the remaining dice and reset the taken array
       this.turn.dice = Game.roll(this.turn.dice.length);
       this.turn.taken = [];
-      this.sendDice();
 
       // check if no remaining option to the player
       if (!this.action.hasOptions()) {
-        this.send("ZILCH!");
+        this.player.zilch++;
+        if (this.player.zilch == 3) {
+          this.sendDice("ZILCH x3! -$500.", true);
+          this.player.score -= 500;
+        } else if (this.player.zilch == 5) {
+          this.sendDice("ZILCH x5! -$1000.", true);
+          this.player.score -= 1000;
+        } else if (this.player.zilch == 6) {
+          this.player.eliminated = true;
+          this.sendDice("ZILCH x6! ELIMINATED!", true);
+        } else {
+          this.sendDice("ZILCH!");
+        }
         this.next();
         return;
       }
-
+      this.sendDice();
     }
   }
 
-  sendDice() {
-    //this.send(this.turn.dice.join(" "))
-    this.send({ files: [convertDiceToSVG(this.turn.dice)] });
+  sendDice(comment = "", newline = false) {
+    if (newline) {
+      this.send(this.turn.dice.join(" "))
+      this.send(comment)
+      return;
+    }
+    this.send(this.turn.dice.join(" ") + " " + comment)
+    // this.send({ files: [convertDiceToSVG(this.turn.dice)] });
   }
 }
 

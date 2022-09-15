@@ -4,21 +4,32 @@ import { Client, Intents, MessageEmbed } from 'discord.js'
 import { Game, Turn, State, Player } from './Game'
 import convertDiceToSVG from './convert'
 import Sender from './Sender'
+import { exitOnError } from 'winston'
 //TODO repurpose instance, don't create new on !start
 let game = new Game(null, null, 0);
-
-const CHANNEL = "915147813761978398"
-const auth = require('../auth.json');
+let config
+try {
+  config = require('../config.json');
+} catch (err) {
+  console.log('config file not found, should be in format ' + JSON.stringify({
+    "channel": "discord channel id",
+    "admin": "discord user id",
+    "token": "discord bot auth token"
+  }));
+  process.exit()
+}
 
 const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES] });
-bot.login(auth.token)
+bot.login(config.token)
 bot.on('ready', function (evt) {
   console.log(`Connected and logged in.`);
+  //const channel = bot.channels.cache.get(config.channel) as any
+  //channel.send("connected afresh.")
 });
 
 bot.on('messageCreate', async message => {
   let { channelId, author, content } = message;
-  if (channelId != CHANNEL) {
+  if (channelId != config.channel) {
     return;
   }
   if (content.substring(0, 1) == '!') {
@@ -41,14 +52,6 @@ bot.on('messageCreate', async message => {
       }
     };
     switch (command) {
-      case "test":
-        send("goes!")
-        game = new Game(send, author.id, 500);
-        game.gather();
-        game.join(new Player("526469115372634122", "mICON"))
-        game.join(new Player("866599161868320779", "satellite"))
-        game.start();
-        break;
       case "start":
         handle(
           () => {
@@ -62,18 +65,20 @@ bot.on('messageCreate', async message => {
         )
         break;
       case "reset":
-        if (author.id != "526469115372634122") return;
+        if (author.id != config.admin) return;
         game.state = State.IDLE;
+        send("done.")
         break;
       case "rapid":
+      case "turbo":
         handle(
           () => {
             game = new Game(send, author.id, 3000);
             game.gather();
             game.join(new Player(author.id, author.username))
-            send("rapid started: 3000. `!join` up")
+            send("rapid started: $3000. `!join` up")
           },
-          () => send("round started, `!join` up"),
+          () => send("round already started, `!join` up"),
           () => send("game is running")
         )
         break;
@@ -104,9 +109,10 @@ bot.on('messageCreate', async message => {
         handle(
           () => send("no gather active. Go `!start`"),
           () => {
-            if (game.startedBy != author.id) return send("only round starter can `!goes`")
+            if (game.startedBy != author.id) {
+              game.join(new Player(author.id, author.username));
+            }
             game.start();
-            send("goes.")
           },
           () => send("game already running.")
         )
