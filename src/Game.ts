@@ -196,6 +196,7 @@ export class Game {
 
       // check if no remaining dice -> new batch
       if (!this.turn.dice.length) {
+        this.turn.taken = [];
         this.turn.dice = Game.roll(6);
         this.send('$' + this.turn.points + ' ($' + (this.player.score + this.turn.points) + ')');
         this.sendDice();
