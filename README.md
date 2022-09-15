@@ -21,7 +21,7 @@ for 4, add an "es", for 5 an "eses" and for 6 of the same an "eseses"\
 1 3 3 3 3 3\
 -> "one threeseses roll"\
 3 3 3 3 3 3\
--> "threeseseses roll"\
+-> "threeseseses roll"
 
 there are shortcuts built in to roll the single dice:\
 "onro" is shorthand for "one roll" while "firo" is short for "five roll"
