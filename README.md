@@ -1,7 +1,9 @@
 # Zilch bot for discord
 
+## Rules
 see https://en.wikipedia.org/wiki/Dice_10000 for rules.
 
+## Syntax
 to take single dice 1 or 5 just type "one" or "five"
 to roll the remaining dice, type "roll", to bank your turn points, type "bank"
 
@@ -28,5 +30,15 @@ there are shortcuts built in to roll the single dice:
 to roll or bank multiple of these, you can use the following shorthand:
 "151r" for "one five one roll"
 "115b" for "one one five bank"
+
+## configuration
+to configure the bot, create a config.json file in the root directory with the following structure:
+{
+    "channel": "discord channel id to join",
+    "admin": "discord user id",
+    "token": "discord bot auth token"
+}
+make sure the bot has the message intent activated.
+
 
 Enjoy!
