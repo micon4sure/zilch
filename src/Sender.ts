@@ -6,7 +6,7 @@ export default class Sender {
     this.callback = callback;
   }
 
-  async send(message: String) {
+  async send(message: string) {
     return new Promise((resolve) => {
       setTimeout(() => {
         this.callback(message);

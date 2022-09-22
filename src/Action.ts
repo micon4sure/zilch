@@ -1,12 +1,13 @@
 import _ from 'lodash'
 import { Game, Turn } from './Game'
+import Log from './Log'
 
 class Token {
-  token: String
+  token: string
   validator: Function
   callback: Function
 
-  constructor(token: String, validator: Function, callback: Function) {
+  constructor(token: string, validator: Function, callback: Function) {
     this.token = token;
     this.validator = validator;
     this.callback = callback;
@@ -37,7 +38,7 @@ class Action {
   turn: Turn;
   tokens: Token[]
 
-  constructor(turn: Turn, roll: Function) {
+  constructor(turn: Turn) {
     this.turn = turn;
 
     this.tokens = [
@@ -98,6 +99,9 @@ class Action {
 
         if (this.isThreePairs())
           return true;
+
+        if (this.isStraight())
+          return true;
       },
       // free callback
       (turn: Turn) => {
@@ -105,18 +109,21 @@ class Action {
           turn.points += 1500;
         } else if (this.isThreePairs()) {
           turn.points += 1000;
+        } else if (this.isStraight()) {
+          turn.points += 1500;
         }
-        turn.dice = Game.roll(6);
+        turn.take(turn.dice);
       }
     ))
   }
 
-  action(token: String) {
+  action(token: string) {
     _.each(this.tokens, candidate => {
       if (candidate.token != token)
         return;
       if (!candidate.validate(this.turn))
         return;
+      Log.get().invokingToken(token);
       candidate.action(this.turn);
     });
   }

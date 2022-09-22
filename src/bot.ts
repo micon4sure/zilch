@@ -5,22 +5,15 @@ import { Game, Turn, State, Player } from './Game'
 import convertDiceToSVG from './convert'
 import Sender from './Sender'
 import { exitOnError } from 'winston'
+import Config from './Config'
+import Database from './Database'
+
 //TODO repurpose instance, don't create new on !start
 let game = new Game(null, null, 0);
-let config
-try {
-  config = require('../config.json');
-} catch (err) {
-  console.log('config file not found, should be in format ' + JSON.stringify({
-    "channel": "discord channel id",
-    "admin": "discord user id",
-    "token": "discord bot auth token"
-  }));
-  process.exit()
-}
+
 
 const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES] });
-bot.login(config.token)
+bot.login(Config.getParam('token'))
 bot.on('ready', function (evt) {
   console.log(`Connected and logged in.`);
   //const channel = bot.channels.cache.get(config.channel) as any
@@ -29,7 +22,7 @@ bot.on('ready', function (evt) {
 
 bot.on('messageCreate', async message => {
   let { channelId, author, content } = message;
-  if (channelId != config.channel) {
+  if (channelId != Config.getParam('channel')) {
     return;
   }
   if (content.substring(0, 1) == '!') {
@@ -65,9 +58,40 @@ bot.on('messageCreate', async message => {
         )
         break;
       case "reset":
-        if (author.id != config.admin) return;
+        if (author.id != Config.getParam('admin')) return;
         game.state = State.IDLE;
         send("done.")
+        break;
+      case "stat":
+      case "stats":
+        const sliceID = (chunk) => chunk.substring(2, chunk.length - 1)
+        let stats, winrate, startrate;
+        switch (chunks[1]) {
+          case "highest":
+            const highest = await Database.getHighest();
+            const date = new Date(highest.date);
+            send(`${highest.player} : ${highest.over} over ${highest.limit} @ ${date.getFullYear()}-${date.getMonth()}-${date.getDay()} ${date.getHours()}:${date.getMinutes()}`);
+            break;
+          case "general":
+            let id = sliceID(chunks[2])
+            stats = await Database.getGeneralStats(id);
+            winrate = (stats.wins / stats.games) * 100;
+            startrate = (stats.started / stats.games) * 100;
+            send(`${stats.wins} wins in ${stats.games} games (${winrate}%). Started ${stats.started} (${startrate}%). $${stats.winnings} in the bank`);
+            break;
+          case "games":
+            stats = await Database.getGameStats();
+            winrate = (stats.starterWin / stats.games) * 100;
+            send(`${stats.games} games played. ${stats.starterWin} won by game starter (${winrate}%)`);
+            break;
+          case "money":
+            stats = await Database.getMoneyStats();
+            _.each(stats, stat => {
+              send(`<@${stat.id}>: ${stat.score}`);
+            })
+            break;
+        }
+
         break;
       case "rapid":
       case "turbo":
@@ -104,6 +128,14 @@ bot.on('messageCreate', async message => {
           () => send("game is running.")
 
         )
+        break;
+      case "test":
+        send("goes!")
+        game = new Game(send, author.id, 500, true);
+        game.gather();
+        game.join(new Player(Config.getParam('admin'), "mICON"))
+        //game.join(new Player("866599161868320779", "satellite"))
+        game.start();
         break;
       case "goes":
         handle(
