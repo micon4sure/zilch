@@ -1,124 +1,197 @@
 import _ from 'lodash'
 
-import Action from './Action'
 import Database from './Database'
 import convertDiceToSVG from './convert'
-import Log from './Log'
+import Token from './Token'
+import Turn from './Turn'
+import Player from './Player'
+import Config, { Config_Param } from './Config'
 
-export enum State {
-  IDLE, GATHER, RUNNING, ENDING
+export enum Game_State {
+  GATHER, RUNNING, ENDING
+}
+export enum Game_Event {
+  GAME, TURN, TOKEN, ROLL, REROLL, BANK, ZILCH, ELIMINATED, END
 }
 
-export class Player {
-  score: number
-  id: string
-  name: string
-  zilch: number = 0;
-  eliminated: boolean = false;
-
-  constructor(id, name) {
-    this.score = 0;
-    this.id = id;
-    this.name = name;
-  }
+/**
+ * Define interface for callback handlers
+ */
+export interface Game_CallbackHandler {
+  registerCallback(event: Game_Event, callback: Function);
+  activateCallbacks(event: Game_Event, data)
 }
 
-export class Game {
+/**
+ * Main game class. Handles player input via `Turn`, calls callbacks on events, rolls dice, etc.
+ */
+export default class Game implements Game_CallbackHandler {
   send: Function;
-  state: State;
+  state: Game_State;
   players: Player[];
   startedBy: string;
-  action: Action;
   turn: Turn;
   player: Player;
   playerNum: number = -1;
   ender: Player;
   limit: number;
-  debug: boolean;
+  bot: boolean;
+  winner: number;
 
-  constructor(send: Function, starterID: string, limit: number, debug = false) {
+  /**
+   * callbacks to be registered, is initialized in constructor
+   */
+  callbacks = {
+  };
+  /**
+   * Final callback to be registered. Called after game ends
+   */
+  finalCallback: Function = null;
+
+  constructor(send: Function, starterID: string, limit: number) {
     this.send = send;
-    this.state = State.IDLE;
+    this.state = Game_State.GATHER;
     this.players = []
     this.startedBy = starterID;
     this.limit = limit;
-    this.debug = debug;
+    
+    // initialize callback array
+    _.each(Game_Event, idx => {
+      if (typeof idx == 'string') return;
+      this.callbacks[idx] = []
+    })
   }
 
+  /**
+   * Set the final callback. Called after game ends
+   * @param callback 
+   */
+  setFinalCallback(callback: Function) {
+    this.finalCallback = callback;
+  }
+
+  /**
+   * Register a callback to be called on event
+   * @param event 
+   * @param callback 
+   */
+  registerCallback(event: Game_Event, callback: Function) {
+    this.callbacks[event].push(callback)
+  }
+
+  /**
+   * Activate all callbacks registered for event
+   * @param event 
+   * @param data 
+   */
+  async activateCallbacks(event: Game_Event, data = {}) {
+    _.each(this.callbacks[event], async callback => {
+      await callback(data)
+    });
+  }
+
+  /**
+   * Register a player
+   * @param player 
+   */
   join(player: Player) {
+    if(player.bot)
+      this.bot = true;
     if (_.find(this.players, candidate => candidate.id == player.id)) return;
     this.players.push(player);
   }
 
+  /**
+   * Start the game
+   */
   start() {
-    Log.startGame(this);
-    this.state = State.RUNNING;
+    if (this.finalCallback === null)
+      throw new Error("no final callback defined")
+    this.state = Game_State.RUNNING;
     this.playerNum = -1;
+    this.activateCallbacks(Game_Event.GAME, { game: this })
     this.next();
   }
+
+  /**
+   * Next turn.
+   * Check if all players eliminated, end game if.
+   * Check if limit has been reached, set game to ending if, end game if all players had their turn after.
+   * Send dice to player
+   * 
+   * @returns 
+   */
   next() {
-    if (this.playerNum + 1 >= this.players.length) {
-      this.playerNum = -1;
+    const nextPlayer = () => {
+      if (this.playerNum + 1 >= this.players.length) {
+        this.playerNum = -1;
+      }
+      this.playerNum++;
     }
 
-    const end = () => {
-      // find player with highest score
-      let highest = _.reverse(
-        _.orderBy(
-          _.filter(
-            this.players, ['eliminated', false]
-          ), 'score')
-      )[0];
-
-      // determine winner.
-      // if the highest score isn't > than the ender's score, ender wins.
-      let winner = (highest.score == this.ender.score)
-        ? this.ender
-        : highest;
-
-      Log.endGame();
-      Database.saveGame(Log.get().getGameStats(winner));
-
-      this.send(`${winner.name} wins! ($${winner.score}).`);
-      this.state = State.IDLE;
-      this.players = [];
-      this.playerNum = -1;
-      this.ender = undefined;
-
-    };
-
     // move on to next player
-    this.player = this.players[++this.playerNum];
+    nextPlayer();
+    this.player = this.players[this.playerNum];
     let eliminated = 0;
 
     // check if player is eliminated. if so, move on to next, if all players are eliminated, end.
     while (this.player.eliminated) {
-      this.player = this.players[++this.playerNum];
+      nextPlayer();
+      this.player = this.players[this.playerNum];
       eliminated++;
       if (eliminated == this.players.length) {
-        end();
+        this.activateCallbacks(Game_Event.END, { game: this });
+        this.send("all players eliminated!")
+        this.finalCallback();
         return;
       }
     }
 
     // if all players had their turn after the ender got a higher score than the limit, end the game
-    if (this.state == State.ENDING && this.ender.id == this.player.id) {
-      end();
+    if (this.state == Game_State.ENDING && this.ender.id == this.player.id) {
+      this.end();
       return;
     }
-    this.send(`<@${this.player.id}> ($${this.player.score})`);
 
     // create new turn, roll dice
-    this.turn = new Turn(Game.roll(6));
-    Log.get().startTurn(this.player.id);
-    this.sendDice();
+    this.turn = new Turn(this, Game.roll(6));
+    this.activateCallbacks(Game_Event.TURN, { game: this });
 
-    // create a new action for this turn, player can try to call this with tokens
-    this.action = new Action(this.turn);
+    if (!this.player.bot) {
+      this.send(`<@${this.player.id}> ($${this.player.score})`)
+    }
+    this.sendDice();
   }
 
+  /**
+   * End the game. Determine winner. Call finalCallback
+   */
+  private end() {
+    // find player with highest score
+    let highest = _.reverse(
+      _.orderBy(
+        _.filter(
+          this.players, ['eliminated', false]
+        ), 'score')
+    )[0];
+
+    // determine winner.
+    // if the highest score isn't > than the ender's score, ender wins.
+    let winner = (highest.score == this.ender.score)
+      ? this.ender
+      : highest;
+
+    this.winner = winner;
+    this.activateCallbacks(Game_Event.END, { game: this });
+    this.send(`${winner.name} wins! ($${winner.score}).`);
+    this.finalCallback();
+  }
+
+  /**
+   * Put the game in gather state
+   */
   gather() {
-    this.state = State.GATHER;
+    this.state = Game_State.GATHER;
   }
   static roll(times) {
     return _.times(times, () => {
@@ -127,9 +200,20 @@ export class Game {
     });
   }
 
-  isActivePlayer(id: string) {
+  /**
+   * Check if active player has id
+   * @param id 
+   */
+  isActivePlayer(id: string): boolean {
     if (!this.player) return false;
     return this.player.id == id;
+  }
+
+  /**
+   * Check if the game is active
+   */
+  isActive() {
+    return this.state == Game_State.RUNNING || this.state == Game_State.ENDING
   }
 
   /**
@@ -143,14 +227,7 @@ export class Game {
     let bank = false;
     let result;
 
-    result = input.match(/^(?<pluses>\++)$/)
-    if (result !== null) {
-      let steps = result.groups['pluses'].length;
-      let previous = Log.get().getPreviousTokens(steps)
-      tokens = _.clone(previous);
-      tokens.push("roll");
-    }
-
+    // 115r shorthand logic
     result = input.match(/^(?<dice>[15]{1,4})(?<rollbank>[rb])$/)
     if (result !== null) {
       tokens = []
@@ -161,40 +238,50 @@ export class Game {
     }
 
     _.each(tokens, token => {
+      // onro, firo
       if (token.toLowerCase() == "onro") {
-        this.action.action("one")
+        this.turn.invoke("one")
         roll = true;
       } else if (token.toLowerCase() == "firo") {
-        this.action.action("five")
+        this.turn.invoke("five")
         roll = true;
-      } else if (token.toLowerCase() == "roll" || token.toLowerCase() == "rikk") {
+      }
+      // 'rikk', 'roll?'
+      else if (token.toLowerCase() == "roll" || token.toLowerCase() == "rikk") {
         roll = true;
       } else if (token.toLowerCase() == "roll?") {
         if (Math.random() > .5)
           roll = true
         else
           bank = true
-      } else if (token.toLowerCase() == "bank") {
+      }
+      // bank
+      else if (token.toLowerCase() == "bank") {
         bank = true;
-      } else if (token.toLowerCase() == "free") {
-        this.action.action("free");
+      }
+      // free
+      else if (token.toLowerCase() == "free") {
+        this.turn.invoke("free");
         roll = true;
       } else {
-        this.action.action(token.toLowerCase());
+        // check input token
+        this.turn.invoke(token.toLowerCase());
       }
     });
+
+    //bank logic
     if (bank) {
       if (this.turn.points < 300) {
         this.send("No: < 300.");
       } else {
-        Log.get().bank(this.turn.points, this.player.score, this.turn.dice, this.turn.taken);
+        this.activateCallbacks(Game_Event.BANK, { game: this });
         this.player.zilch = 0;
         this.player.score += this.turn.points;
         this.send(`+$${this.turn.points} -> $${this.player.score}`);
 
-        if (this.player.score >= this.limit && this.state != State.ENDING) {
+        if (this.player.score >= this.limit && this.state != Game_State.ENDING) {
           this.ender = this.player;
-          this.state = State.ENDING;
+          this.state = Game_State.ENDING;
           this.send(`${this.player.name} @ $${this.player.score} >= $${this.limit}!`);
         }
         this.next();
@@ -205,110 +292,98 @@ export class Game {
     // roll logic
     else if (roll) {
       // if no dice have been taken, player is not allowed to roll
-      if (!this.turn.taken.length)
+      if (!this.turn.taken.length) {
         return;
-
+      }
+      this.activateCallbacks(Game_Event.ROLL, { game: this });
 
       // check if no remaining dice -> new batch
       if (!this.turn.dice.length) {
-        Log.get().roll(this.turn.points, this.player.score, this.turn.dice, this.turn.taken, false);
         this.turn.taken = [];
         this.turn.dice = Game.roll(6);
         this.send('$' + this.turn.points + ' ($' + (this.player.score + this.turn.points) + ')');
         this.sendDice();
+        this.activateCallbacks(Game_Event.REROLL, { game: this });
         return;
       }
 
       // reroll the remaining dice
       this.turn.dice = Game.roll(this.turn.dice.length);
 
-      // check if no remaining option to the player
-      if (this.action.hasOptions()) {
-        Log.get().roll(this.turn.points, this.player.score, this.turn.dice, this.turn.taken, false);
-        this.turn.taken = [];
-      } else {
+      // check if zilch
+      if (!this.turn.hasOptions()) {
         this.player.zilch++;
-        Log.get().roll(this.turn.points, this.player.score, this.turn.dice, this.turn.taken, true);
-        Log.get().zilch();
 
         if (this.player.zilch == 3) {
-          this.sendDice("ZILCH x3! -$500.", true);
+          this.activateCallbacks(Game_Event.ZILCH, { game: this, penalty: -500 });
+          this.sendDice("ZILCH x3! -$500.", true, true);
           this.player.score -= 500;
         } else if (this.player.zilch == 5) {
-          this.sendDice("ZILCH x5! -$1000.", true);
+          this.activateCallbacks(Game_Event.ZILCH, { game: this, penalty: -1000 });
+          this.sendDice("ZILCH x5! -$1000.", true, true);
           this.player.score -= 1000;
         } else if (this.player.zilch == 6) {
           this.player.eliminated = true;
-          this.sendDice("ZILCH x6! ELIMINATED!", true);
+          this.activateCallbacks(Game_Event.ELIMINATED, { game: this });
+          this.sendDice("ZILCH x6! ELIMINATED!", true, true);
         } else {
-          this.sendDice("ZILCH!");
+          this.activateCallbacks(Game_Event.ZILCH, { game: this, penalty: 0 });
+          this.sendDice("ZILCH!", false, true);
         }
         this.next();
         return;
+      } else {
+        this.turn.taken = [];
       }
       this.sendDice();
     }
   }
 
-  sendDice(comment = "", newline = false) {
+  /**
+   * Send the current dice to the players
+   * @param comment string to be added to the dice
+   * @param newline send comment on newline?
+   * @param zilch player zilched?
+   * @returns 
+   */
+  sendDice(comment = "", newline = false, zilch = false) {
+    /**
+     * spice up dice message with bold (or underline if game is ending) and zilch*'!'
+     */ 
+    let stringify = () => {
+      let result = '';
+      // default envelope: bold
+      let envelope = '**';
+
+      // if game is ending and user should be alerted to that, underline instead of bold
+      if (Config.getParam(Config_Param.ALERT_ENDING) && (this.state == Game_State.ENDING)) {
+        envelope = '__';
+      }
+
+      // if config is enabled and player has zilch value, alert them to it
+      if (Config.getParam(Config_Param.ALERT_ZILCH) && this.player.zilch > 0) {
+        _.times(this.player.zilch, () => result += '!');
+        result += ' ';
+      }
+
+      // create dice string and return it
+      result += envelope + this.turn.dice.join(" ") + envelope;
+      return result;
+    }
+    
+    // special bot syntax, only send if the bot didn't zilch and we want it to act on the dice
+    if (this.player.bot && !zilch) {
+      this.send("<@" + this.player.id + "> **" + this.turn.dice.join(" ") + "** (" + _.join([this.player.score, this.turn.points, this.player.zilch,], ";") + ")")
+      return;
+    }
+
+    // actually send dice
     if (newline) {
-      this.send(this.turn.dice.join(" "))
+      this.send(stringify())
       this.send(comment)
       return;
     }
-    this.send(this.turn.dice.join(" ") + " " + comment)
+    this.send(stringify() + " " + comment)
     // this.send({ files: [convertDiceToSVG(this.turn.dice)] });
-  }
-}
-
-
-export class Turn {
-  dice: number[];
-  points: number;
-  taken: number[] = [];
-
-  constructor(dice: number[]) {
-    this.dice = dice;
-    this.points = 0;
-  }
-
-  has(dice: number[]) {
-    let exclude: number[] = [];
-
-    _.each(dice, (die, index) => {
-      _.each(this.dice, (candidate, candidateIndex) => {
-        if (_.includes(exclude, candidateIndex)) return null;
-
-        if (candidate == die) {
-          exclude.push(candidateIndex);
-          // return false -> break _.each
-          return false;
-        }
-        return null;
-      });
-    });
-    return dice.length == exclude.length;
-  }
-
-  take(dice: number[]) {
-    if (!this.has(dice)) {
-      throw new Error("can't take what I don't have")
-    }
-    let exclude: number[] = [];
-
-    _.each(dice, (die, index) => {
-      _.each(this.dice, (candidate, candidateIndex) => {
-        if (_.includes(exclude, candidateIndex)) return null;
-
-        if (candidate == die) {
-          exclude.push(candidateIndex);
-          // return false = break each
-          return false;
-        }
-        return null;
-      });
-    });
-    this.taken = this.taken.concat(_.map(exclude, idx => this.dice[idx]));
-    this.dice = _.filter(this.dice, (die, index) => !_.includes(exclude, index));
   }
 }

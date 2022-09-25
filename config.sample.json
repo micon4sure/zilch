@@ -1,0 +1,11 @@
+{
+    "channels": [""],
+    "admins": [""],
+    "Bot_Host": "xyz123",
+    "Bot_Player": "abc456",
+    "alert_zilch": true,
+    "alert_ending": true,
+    "history": false,
+    "db_user": "user",
+    "db_password": "pw"
+}

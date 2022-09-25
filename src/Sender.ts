@@ -1,3 +1,6 @@
+/**
+ * Message sender abstraction, throttles message sending
+ */
 export default class Sender {
   wait: number = 0;
   callback: Function;

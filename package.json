@@ -4,14 +4,17 @@
   "description": "",
   "main": "bot.js",
   "scripts": {
-    "goes": "nodemon --exec ts-node src/bot.ts",
-    "db":  "nodemon --exec ts-node src/db.ts",
+    "run": "nodemon --exec ts-node bots.ts",
+    "host": "nodemon --exec ts-node bot_host.ts",
+    "player": "nodemon --exec ts-node bot_player.ts",
     "test": "nodemon -w test -w src -e ts --exec jest"
   },
   "author": "mICON",
   "license": "ISC",
   "dependencies": {
+    "@liquid-carrot/carrot": "^0.3.20",
     "arangojs": "^7.8.0",
+    "deep-object-diff": "^1.1.7",
     "discord.js": "^13.3.1",
     "lodash": "^4.17.21",
     "node-html-to-image": "^3.2.0",
