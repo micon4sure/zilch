@@ -76,7 +76,7 @@ export class Bot_Host extends Bot {
         this.registerCallbacks();
         send(`started for ${value}. \`!join\` up`)
 
-        if (arg !== undefined && arg == 'y') {
+        if (arg !== undefined && arg !== undefined) {
           send('?join')
         }
       },
@@ -161,16 +161,6 @@ export class Bot_Host extends Bot {
     const sliceID = (arg) => arg.substring(2, arg.length - 1)
     let stats, winrate, startrate;
     switch (args[0]) {
-      case "highest":
-        const highest = await Database.getHighest();
-        if (highest === undefined) {
-          send("nothing valid recorded")
-          return;
-        }
-        const date = new Date(highest.date);
-        const datestring = (date.getFullYear() + '-' + ("0" + (date.getMonth() + 1)).slice(-2) + '-' + ("0" + date.getDate()).slice(-2) + ' ' + ("0" + date.getHours()).slice(-2) + ":" + ("0" + date.getMinutes()).slice(-2));
-        send(`${highest.player} : ${highest.over} over ${highest.limit} @ ${datestring}`);
-        break;
       case "all":
         let id = sliceID(args[1])
         stats = await Database.getGeneralStats(id);
@@ -192,8 +182,18 @@ export class Bot_Host extends Bot {
           send(`<@${stat.id}>: ${stat.score}`);
         })
         break;
+      case "highest":
+        const highest = await Database.getHighest();
+        if (highest === undefined) {
+          send("nothing valid recorded")
+          return;
+        }
+        const date = new Date(highest.date);
+        const datestring = (date.getFullYear() + '-' + ("0" + (date.getMonth() + 1)).slice(-2) + '-' + ("0" + date.getDate()).slice(-2) + ' ' + ("0" + date.getHours()).slice(-2) + ":" + ("0" + date.getMinutes()).slice(-2));
+        send(`${highest.player} : ${highest.over} over ${highest.limit} @ ${datestring}`);
+        break;
       default:
-        send("highest; money; games; all <id>");
+        send("all <id>; games; money; higehst");
         break;
     }
   }
@@ -220,8 +220,8 @@ export class Bot_Host extends Bot {
       let args = chunks;
 
       switch (command) {
-        case "start":
         case "zilch":
+        case "z":
           this.initializeGameDefault(send, author, 10000, args[0]);
           break;
         case "reset":
@@ -229,6 +229,7 @@ export class Bot_Host extends Bot {
           this.game = null
           send("reset done.")
           break;
+        case "s":
         case "stat":
         case "stats":
           if (!Config.getParam(Config_Param.STATISTICS)) {
@@ -237,7 +238,8 @@ export class Bot_Host extends Bot {
           }
           this.handleStats(send, args);
           break;
-        case "speed":
+        case "turbo":
+        case "t":
           this.initializeGameDefault(send, author, 500, args[0]);
           break;
         case "rapid":
@@ -245,9 +247,11 @@ export class Bot_Host extends Bot {
           this.initializeGameDefault(send, author, 3000, args[0]);
           break;
         case "custom":
+        case "c":
           this.initializeGameDefault(send, author, args[0], args[1]);
           break;
         case "join":
+        case "j":
           this.initializeGame(
             () => send("no game running. go `!start`"),
             () => {
@@ -382,19 +386,20 @@ export class Bot_Player extends Bot {
     });
 
     switch (content) {
+      case "?zilch":
+      case "?z":
+        sender.send("!zilch");
+
       case "?rapid":
       case "?r":
         sender.send("!rapid")
         break;
-      case "?speed":
-        sender.send("!speed")
-        break;
-      case "?bot":
-        if (!Config.isAdmin(author.id) && !author.bot) return;
-        sender.send("!reset");
-        sender.send("!goes 300");
+      case "?turbo":
+      case "?t":
+        sender.send("!turbo")
         break;
       case "?join":
+      case "?j":
         if (!Config.isAdmin(author.id) && !author.bot) return;
         sender.send("!join")
         break;
