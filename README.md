@@ -14,7 +14,7 @@ see https://en.wikipedia.org/wiki/Dice_10000 for rules.
 | !goes \| !g | start the game
 
 ## Play Syntax
-to take single dice 1 or 5 just type "one" or "five"\
+to take single die with face 1 or 5 just type "one" or "five"\
 to roll the remaining dice, type "roll", to bank your turn points, type "bank"
 
 example: you have the following dice:\
