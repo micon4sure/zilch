@@ -86,6 +86,15 @@ export default class Token {
   }
 
   /**
+   * Return a token by its name
+   * @param token string
+   * @returns Token
+   */
+  static get(token: string): Token {
+    return _.find(Token.getAll(), { token: token });
+  }
+
+  /**
    * Lazily load all tokens
    */
   static getAll() {

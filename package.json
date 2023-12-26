@@ -4,39 +4,19 @@
   "description": "",
   "main": "bot.js",
   "scripts": {
-    "zilch": "nodemon --exec ts-node bots.ts",
-    "host": "nodemon --exec ts-node bot_host.ts",
-    "player": "nodemon --exec ts-node bot_player.ts",
-    "db": "nodemon --exec ts-node db.ts",
-    "test": "nodemon -w test -w src -e ts --exec jest"
+    "zilch": "bun run bots.ts",
+    "db": "bun run db.ts"
   },
   "author": "mICON",
   "license": "ISC",
   "dependencies": {
-    "@liquid-carrot/carrot": "^0.3.20",
     "arangojs": "^7.8.0",
+    "comment-json": "^4.2.3",
     "deep-object-diff": "^1.1.7",
-    "discord.js": "^13.3.1",
-    "lodash": "^4.17.21",
-    "node-html-to-image": "^3.2.0",
-    "node-ts": "^5.1.2",
-    "nodemon": "^2.0.20",
-    "svg-png-converter": "^0.0.9",
-    "svg2png": "^4.1.1",
-    "ts-node": "^10.4.0",
-    "winston": "^3.3.3"
+    "discord.js": "^14.14.1",
+    "lodash": "^4.17.21"
   },
   "devDependencies": {
-    "@babel/core": "^7.16.0",
-    "@babel/preset-env": "^7.16.4",
-    "@babel/preset-typescript": "^7.16.0",
-    "@types/jest": "^27.0.3",
-    "@types/mocha": "^9.0.0",
-    "babel-jest": "^27.4.2",
-    "chai": "^4.3.4",
-    "jest": "^27.4.4",
-    "mocha": "^9.1.3",
-    "ts-jest": "^27.1.1",
-    "typescript": "^4.5.3"
+    "typescript": "^5.3.3"
   }
 }

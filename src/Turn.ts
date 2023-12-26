@@ -22,6 +22,10 @@ export default class Turn {
    * The dice taken off the table in the latest roll
    */
   taken: number[] = [];
+  /**
+   * If the turn is upgradable, resets on fresh batch of dice
+   */
+  upgradable: boolean = true;
 
   constructor(callbackHandler: Game_CallbackHandler, dice: number[]) {
     this.callbackHandler = callbackHandler;

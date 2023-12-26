@@ -1,5 +1,4 @@
-auth.json
-config.json
 node_modules
-lib.git
-.gitbak
+config.jsonc
+publish.sh
+bun.lockb

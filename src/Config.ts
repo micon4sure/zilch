@@ -1,4 +1,6 @@
 import _ from 'lodash'
+import { parse } from 'comment-json'
+import fs from 'fs'
 
 export enum Config_Param {
   ADMINS = 'admins',
@@ -38,7 +40,9 @@ export default class Config {
     if (Config.config !== null)
       return Config.config;
     try {
-      Config.config = require('../config.json');
+      // load config as json with comments
+      const configRaw = fs.readFileSync('./config.jsonc', 'utf8')
+      Config.config = parse(configRaw)
       return Config.config
     } catch (err) {
       console.log("need config")

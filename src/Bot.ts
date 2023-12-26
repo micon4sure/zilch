@@ -1,8 +1,7 @@
 import _ from 'lodash'
-import { Client, Intents } from 'discord.js'
+import { Client, GatewayIntentBits } from 'discord.js'
 
 import Game, { Game_CallbackHandler, Game_Event, Game_State } from './Game'
-import convertDiceToSVG from './convert'
 import Sender from './Sender'
 import Config, { Config_Param } from './Config'
 import Database from './Database'
@@ -20,7 +19,13 @@ export default abstract class Bot {
   protected client: Client;
 
   constructor() {
-    this.client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES] });
+    this.client = new Client({
+      intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+      ],
+    });
     this.client.login(Config.getParamUnsafe(this.constructor.name))
     console.log(this.constructor.name)
 

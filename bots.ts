@@ -7,4 +7,6 @@ if (Config.getParam(Config_Param.STATISTICS)) {
     new History_Handler(host);
 }
 
-new Bot_Player();
+if (Config.getParam(Config_Param.BOT_PLAYER)) {
+    new Bot_Player();
+}

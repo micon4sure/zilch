@@ -3,7 +3,6 @@ import Game from './Game'
 import Config, { Config_Param } from './Config'
 import { History } from './History'
 import { aql } from 'arangojs';
-import { dataToBase64 } from 'svg-png-converter';
 
 let Arango = require('arangojs').Database;
 
@@ -87,7 +86,7 @@ export default class Database {
       let amounts = {}
 
       result = await db.query(query);
-      
+
       // sum up the amounts returned by the dataqbase
       while (next = await result.next()) {
         if (next.id === null)
@@ -96,7 +95,7 @@ export default class Database {
           amounts[next.id] = 0;
         amounts[next.id] += next.score;
       }
-      
+
       // create an array of objects with id and score by mapping over the sums
       let mapped = _.map(amounts, (score, id) => { return { id, score } });
       // sort the array by score, reverse it so as to be sorted DESC

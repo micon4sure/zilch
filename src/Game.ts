@@ -1,7 +1,6 @@
 import _ from 'lodash'
 
 import Database from './Database'
-import convertDiceToSVG from './convert'
 import Token from './Token'
 import Turn from './Turn'
 import Player from './Player'
@@ -62,7 +61,7 @@ export default class Game implements Game_CallbackHandler {
   /**
    * "destructor"
    */
-   public release() {
+  public release() {
     if (this.timeout)
       clearTimeout(this.timeout)
   }
@@ -86,6 +85,91 @@ export default class Game implements Game_CallbackHandler {
         tokens.push(die == 1 ? 'one' : 'five');
       })
       tokens.push(result.groups['rollbank'] == 'r' ? 'roll' : 'bank');
+    }
+
+    // upgrade logic
+    let didUpgrade = false;
+    console.log(tokens)
+    _.each(tokens, (token, index) => {
+      if (token == 'upgrade' || token == 'up') {
+        if (!this.turn.upgradable) {
+          this.send("No!")
+          return false;
+        }
+        // check for die to upgrade in tokens
+        let upgradeToken = null;
+        _.each(tokens, token => {
+          _.each(['one', 'two', 'three', 'four', 'five', 'six'], (die, index) => {
+            if (token == die || token == (index + 1)) {
+              upgradeToken = die;
+            }
+          });
+          if (upgradeToken !== null) {
+            return false;
+          }
+        })
+        if (upgradeToken === null) {
+          return false;
+        }
+
+        let upgradeDie;
+        switch (upgradeToken) {
+          case 'one':
+            upgradeDie = 1;
+            break;
+          case 'two':
+            upgradeDie = 2;
+            break;
+          case 'three':
+            upgradeDie = 3;
+            break;
+          case 'four':
+            upgradeDie = 4;
+            break;
+          case 'five':
+            upgradeDie = 5;
+            break;
+          case 'six':
+            upgradeDie = 6;
+            break;
+        }
+
+        // check if player actually has such a die
+        if (!this.turn.has([upgradeDie])) {
+          this.send("Uh.. No.")
+          return false;
+        }
+
+        let isUpgradeable = false;
+        const diceClone = _.clone(this.turn.dice);
+        const upgradeIndex = _.findIndex(diceClone, die => die == upgradeDie);
+        // check if substituting with any die would result in a free
+        const freeToken = Token.get('free');
+        _.each([1, 2, 3, 4, 5, 6], candidate => {
+          diceClone[upgradeIndex] = candidate;
+          const mockTurn = new Turn(this, diceClone);
+          if (freeToken.validate(mockTurn)) {
+            isUpgradeable = true;
+            return false;
+          }
+        })
+
+        if (!isUpgradeable) {
+          this.send("No.")
+          return false;
+        }
+
+        // actually upgrade
+        this.turn.dice[upgradeIndex] = _.random(1, 6);
+        this.sendDice("upgraded.");
+
+        didUpgrade = true;
+        this.turn.upgradable = false;
+      }
+    });
+
+    if (didUpgrade) {
+      return;
     }
 
     _.each(tokens, token => {
@@ -153,6 +237,7 @@ export default class Game implements Game_CallbackHandler {
       if (!this.turn.dice.length) {
         this.turn.taken = [];
         this.turn.dice = Game.roll(6);
+        this.turn.upgradable = true;
         this.send('$' + this.turn.points + ' ($' + (this.player.score + this.turn.points) + ')');
         this.sendDice();
         this.activateCallbacks(Game_Event.REROLL, { game: this });
@@ -255,26 +340,26 @@ export default class Game implements Game_CallbackHandler {
     this.sendDice();
   }
 
-    /**
-   * Register a callback to be called on event
+  /**
+ * Register a callback to be called on event
+ * @param event 
+ * @param callback 
+ */
+  registerCallback(event: Game_Event, callback: Function) {
+    this.callbacks[event].push(callback)
+  }
+
+  /**
+   * Activate all callbacks registered for event
    * @param event 
-   * @param callback 
+   * @param data 
    */
-     registerCallback(event: Game_Event, callback: Function) {
-      this.callbacks[event].push(callback)
-    }
-  
-    /**
-     * Activate all callbacks registered for event
-     * @param event 
-     * @param data 
-     */
-    async activateCallbacks(event: Game_Event, data = {}) {
-      _.each(this.callbacks[event], async callback => {
-        await callback(data)
-      });
-    }
-  
+  async activateCallbacks(event: Game_Event, data = {}) {
+    _.each(this.callbacks[event], async callback => {
+      await callback(data)
+    });
+  }
+
 
   /**
    * Set/refresh timeout after which player is eliminated
@@ -292,7 +377,7 @@ export default class Game implements Game_CallbackHandler {
   /**
    * Put the game in gather state
    */
-   gather() {
+  gather() {
     this.state = Game_State.GATHER;
   }
 
@@ -300,7 +385,7 @@ export default class Game implements Game_CallbackHandler {
    * Register a player
    * @param player 
    */
-   join(player: Player) {
+  join(player: Player) {
     if (player.bot)
       this.bot = true;
     if (_.find(this.players, candidate => candidate.id == player.id)) return;
@@ -322,6 +407,7 @@ export default class Game implements Game_CallbackHandler {
    * @param times 
    */
   static roll(times) {
+    // return [1, 1, 2, 2, 3, 4]
     return _.times(times, () => {
       let num = Math.random() * 6;
       return Math.ceil(num)
@@ -382,19 +468,12 @@ export default class Game implements Game_CallbackHandler {
       return;
     }
 
-    if (Config.getParam(Config_Param.EMOJI)) {
-      if (comment.length) {
-        this.send(comment);
-      }
-      this.send({ files: [convertDiceToSVG(this.turn.dice)] });
-    } else {
-      // actually send dice
-      if (newline) {
-        this.send(stringify())
-        this.send(comment)
-        return;
-      }
-      this.send(stringify() + " " + comment)
+    // actually send dice
+    if (newline) {
+      this.send(stringify())
+      this.send(comment)
+      return;
     }
+    this.send(stringify() + " " + comment)
   }
 }
