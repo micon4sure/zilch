@@ -42,6 +42,9 @@ to roll or bank multiple of these, you can use the following shorthand:\
 
 a single `+` will reroll the last token
 
+to try an upgrade to a free do `upgrade` and then the die you want to try to upgrade
+for the throw 1 1 2 2 3 4 this could be `upgrade four` or its shorthand `up 4`
+
 ## Bot player syntax
 | command | effect | arguments | example|
 |-|-|-|-|
