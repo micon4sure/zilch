@@ -4,7 +4,6 @@ import { Client, GatewayIntentBits } from 'discord.js'
 import Game, { Game_CallbackHandler, Game_Event, Game_State } from './Game'
 import Sender from './Sender'
 import Config, { Config_Param } from './Config'
-import Database from './Database'
 import Player from './Player'
 import Token from './Token'
 import Turn from './Turn'
@@ -42,18 +41,13 @@ export default abstract class Bot {
 }
 
 /**
- * Host bot. Handles game and stats
+ * Host bot. Handles the game
  */
 export class Bot_Host extends Bot {
   protected game = null;
   private previousRoll = [];
   private previousTokens = [];
   private timeout;
-
-  /**
-   * Callbacks to be registered on games
-   */
-  callbacks = {}
 
   /**
    * Called when user tries to alter game state (create new, join, start), call passed functions according to game state
@@ -89,7 +83,7 @@ export class Bot_Host extends Bot {
         this.registerCallbacks();
         send(`started for ${value}. \`!join\` up`)
 
-        if (arg !== undefined && arg == "y") {
+        if (typeof arg === "string" && arg.toLowerCase() == "y") {
           send('?join')
         }
       },
@@ -108,25 +102,11 @@ export class Bot_Host extends Bot {
   }
 
   /**
-   * Set a callback for an event, will later register on game
-   * @param event 
-   * @param callback 
-   */
-  setCallback(event: Game_Event, callback: Function) {
-    this.callbacks[event] = callback;
-  }
-
-  /**
    * Register callbacks on game
    */
   registerCallbacks() {
     // register cleanup callback
     this.game.registerCallback(Game_Event.END, this.cleanup.bind(this));
-
-    // register external callbacks
-    _.each(this.callbacks, (callback, event) => {
-      this.game.registerCallback(event, callback);
-    })
 
     // register prev handling callbacks
     this.game.registerCallback(Game_Event.TOKEN, (data) => {
@@ -191,50 +171,33 @@ export class Bot_Host extends Bot {
   }
 
   /**
-   * Handle user calling !stat(s)
-   * @param send 
-   * @param args 
-   * @returns Promise
+   * Send the command overview.
+   * @param send
    */
-  async handleStats(send, args) {
-    const sliceID = (arg) => arg.substring(2, arg.length - 1)
-    let stats, winrate, startrate;
-    switch (args[0]) {
-      case "all":
-        let id = sliceID(args[1])
-        stats = await Database.getGeneralStats(id);
-        winrate = (stats.wins / stats.games) * 100;
-        startrate = (stats.started / stats.games) * 100;
-        send(`${stats.wins} wins in ${stats.games} games (${winrate}%). Started ${stats.started} (${startrate}%). $${stats.winnings} in the bank`);
-        break;
-      case "games":
-        stats = await Database.getGameStats();
-        winrate = (stats.starterWin / stats.games) * 100;
-        send(`${stats.games} games played. ${stats.starterWin} won by game starter (${winrate}%)`);
-        break;
-      case "money":
-        stats = await Database.getMoneyStats();
-        if (stats.length == 0) {
-          send("no stats")
-        }
-        _.each(stats, stat => {
-          send(`${stat.name}: ${stat.score}`);
-        })
-        break;
-      case "highest":
-        const highest = await Database.getHighest();
-        if (highest === undefined) {
-          send("nothing valid recorded")
-          return;
-        }
-        const date = new Date(highest.date);
-        const datestring = (date.getFullYear() + '-' + ("0" + (date.getMonth() + 1)).slice(-2) + '-' + ("0" + date.getDate()).slice(-2) + ' ' + ("0" + date.getHours()).slice(-2) + ":" + ("0" + date.getMinutes()).slice(-2));
-        send(`${highest.player} : ${highest.over} over ${highest.limit} @ ${datestring}`);
-        break;
-      default:
-        send("all <id>; games; money; higehst");
-        break;
-    }
+  sendHelp(send) {
+    [
+      "**Zilch commands**",
+      "Start: `!zilch`/`!z` (10,000), `!rapid`/`!r` (3,000), `!turbo`/`!t` (500), or `!custom`/`!c <limit>`. Add `y` to ask the configured bot player to join.",
+      "Lobby: `!join`/`!j` joins the current lobby. `!goes`/`!g` starts it.",
+      "Play: select scoring dice, then finish with `roll` or `bank`. Use `!howto`/`!how` for examples and all input shortcuts.",
+      "Admin: `!reset` abandons the current game."
+    ].forEach(line => send(line));
+  }
+
+  /**
+   * Explain turn input and scoring syntax.
+   * @param send
+   */
+  sendHowTo(send) {
+    [
+      "**How to play Zilch**",
+      "On your turn, select scoring dice and finish the same message with `roll` to continue or `bank` to keep the points. You need at least 300 turn points to bank.",
+      "Singles: `one` scores 100 and `five` scores 50. Sets: use `ones`, `twos`, `threes`, etc. Add `es`, `eses`, or `eseses` for four, five, or six of a kind, such as `threeses` for four threes.",
+      "Examples: `one five five roll`, `threes bank`, `151r`, or `115b`. `onro` means `one roll`; `firo` means `five roll`.",
+      "Specials: use `free` for a straight, three pairs, or a six-die roll with no scoring dice. `roll?` randomly rolls or banks. `+` repeats the scoring dice from your previous roll.",
+      "Upgrade: once per fresh set of six dice, use `upgrade <die>` or `up <die>`, for example `up 5`, when changing that die could make a free combination.",
+      "Full rules: https://en.wikipedia.org/wiki/Dice_10000"
+    ].forEach(line => send(line));
   }
 
   /**
@@ -253,8 +216,8 @@ export class Bot_Host extends Bot {
     let send = sender.send.bind(sender);
 
     if (content.substring(0, 1) == '!') {
-      let chunks = content.split(" ");
-      let command = chunks.shift().substring(1);
+      let chunks = content.trim().split(/\s+/);
+      let command = chunks.shift().substring(1).toLowerCase();
       let args = chunks;
 
       switch (command) {
@@ -263,23 +226,28 @@ export class Bot_Host extends Bot {
           this.handleStateInputDefault(send, author, limit, null);
           this.startGame();
           break;
+        case "h":
+        case "help":
+        case "commands":
+          this.sendHelp(send);
+          break;
+        case "how":
+        case "howto":
+        case "rules":
+          this.sendHowTo(send);
+          break;
         case "zilch":
         case "z":
           this.handleStateInputDefault(send, author, 10000, args[0]);
           break;
         case "reset":
           if (!Config.isAdmin(author.id) && !author.bot) return;
-          this.abandonGame();
-          send("reset done.");
-          break;
-        case "stats":
-        case "stat":
-        case "s":
-          if (!Config.getParam(Config_Param.STATISTICS)) {
-            send("statistics not activated")
+          if (this.game === null) {
+            send("no game running.");
             break;
           }
-          this.handleStats(send, args);
+          this.abandonGame();
+          send("reset done.");
           break;
         case "turbo":
         case "t":
@@ -291,7 +259,12 @@ export class Bot_Host extends Bot {
           break;
         case "custom":
         case "c":
-          this.handleStateInputDefault(send, author, args[0], args[1]);
+          const customLimit = Number(args[0]);
+          if (!Number.isInteger(customLimit) || customLimit <= 0) {
+            send("usage: `!custom <limit> [y]`");
+            break;
+          }
+          this.handleStateInputDefault(send, author, customLimit, args[1]);
           break;
         case "join":
         case "j":
@@ -307,12 +280,7 @@ export class Bot_Host extends Bot {
         case "goes":
         case "g":
           this.handleStateInput(
-            () => {
-              this.createGame(send, author.id, parseInt(args[0]));
-              this.addPlayer(new Player(author.id, author.username, author.bot))
-              this.registerCallbacks();
-              this.startGame();
-            },
+            () => send("no lobby running. start one with `!zilch`, `!rapid`, `!turbo`, or `!custom`."),
             () => {
               if (this.game.startedBy != author.id) {
                 this.addPlayer(new Player(author.id, author.username, author.bot));
@@ -321,6 +289,9 @@ export class Bot_Host extends Bot {
             },
             () => send("game already running.")
           )
+          break;
+        default:
+          send("unknown command. try `!help`.");
           break;
       }
     } else {
@@ -438,18 +409,22 @@ export class Bot_Player extends Bot {
    * @param message 
    */
   onMessage(message) {
-    let { channelId, author, content } = message;
+    let { content } = message;
     const sender = new Sender((text) => {
       message.channel.send(text)
     });
 
-    switch (content) {
+    const chunks = content.trim().split(/\s+/);
+    const command = chunks.shift().toLowerCase();
+
+    switch (command) {
       case "?test":
         sender.send("!test")
         break;
       case "?zilch":
       case "?z":
         sender.send("!zilch");
+        break;
 
       case "?rapid":
       case "?r":
@@ -458,6 +433,10 @@ export class Bot_Player extends Bot {
       case "?turbo":
       case "?t":
         sender.send("!turbo")
+        break;
+      case "?custom":
+      case "?c":
+        sender.send(["!custom", ...chunks].join(" "))
         break;
       case "?join":
       case "?j":

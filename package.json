@@ -4,15 +4,12 @@
   "description": "",
   "main": "bot.js",
   "scripts": {
-    "zilch": "bun run bots.ts",
-    "db": "bun run db.ts"
+    "zilch": "bun run bots.ts"
   },
   "author": "mICON",
   "license": "ISC",
   "dependencies": {
-    "arangojs": "^7.8.0",
     "comment-json": "^4.2.3",
-    "deep-object-diff": "^1.1.7",
     "discord.js": "^14.14.1",
     "lodash": "^4.17.21"
   },

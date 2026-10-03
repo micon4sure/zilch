@@ -9,9 +9,6 @@
     "Bot_Player": "abc456",
     "alert_zilch": true,
     "alert_ending": true,
-    "statistics": false,
-    "db_user": "user",
-    "db_password": "pw",
     "timeout_gather": 180000,
     "timeout_turn": 900000
 }

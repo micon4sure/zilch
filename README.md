@@ -1,75 +1,110 @@
-# Zilch bot for discord
+# Zilch Discord bot
 
-## Rules
-see https://en.wikipedia.org/wiki/Dice_10000 for rules.
+A Discord bot for playing the Zilch/Farkle dice game. General rules are available at [Wikipedia](https://en.wikipedia.org/wiki/Dice_10000).
 
-## Game syntax
-| command | effect | arguments | example|
-|---------------------------|----------------------|---|-|
-| !zilch \| !z  | start a gather @ 10k | join bot| !zilch y
-| !rapid \| !r  | start a gather @ 3k  | join bot| !r
-| !turbo \| !t  | start a gather @ 500 |join bot | !t y
-| !custom \| !c | start a gather @ custom amount | amount ... join bot| !custom 5000 y
-| !join \| !j | join a gather
-| !goes \| !g | start the game
+## Commands
 
-## Play Syntax
-to take single die with face 1 or 5 just type "one" or "five"\
-to roll the remaining dice, type "roll", to bank your turn points, type "bank"
+| Command | Effect |
+| --- | --- |
+| `!zilch [y]`, `!z [y]` | Open a lobby with a 10,000-point limit. |
+| `!rapid [y]`, `!r [y]` | Open a lobby with a 3,000-point limit. |
+| `!turbo [y]`, `!t [y]` | Open a lobby with a 500-point limit. |
+| `!custom <limit> [y]`, `!c <limit> [y]` | Open a lobby with a custom positive point limit. |
+| `!join`, `!j` | Join the open lobby. |
+| `!goes`, `!g` | Start the open lobby. |
+| `!help`, `!h`, `!commands` | Show the command overview. |
+| `!howto`, `!how`, `!rules` | Explain scoring input, shortcuts, and upgrades. |
+| `!reset` | Abandon the current game. This is restricted to configured admins and bots. |
 
-example: you have the following dice:\
-1 3 6 5 5 2\
-you can now roll by typing "one five five roll"
+The lobby creator joins automatically. Add `y` to a start command, such as `!rapid y` or `!custom 5000 y`, to ask the configured bot player to join.
 
-having three of the same face is indicated by adding an "s" to the end:\
-1 3 2 3 3 4\
--> "one threes roll"
+Commands are case-insensitive and may contain extra spaces.
 
-for 4, add an "es", for 5 an "eses" and for 6 of the same an "eseses"\
-1 3 2 3 3 3\
--> "one threeses roll"\
-1 3 3 3 3 3\
--> "one threeseses roll"\
-3 3 3 3 3 3\
--> "threeseseses roll"
+## How to play
 
-there are shortcuts built in to roll the single dice:\
-"onro" is shorthand for "one roll" while "firo" is short for "five roll"
+On your turn, the bot shows the available dice. Select one or more scoring dice and finish the same message with `roll` to continue or `bank` to keep the points. You need at least 300 points in the current turn before you can bank.
 
-to roll or bank multiple of these, you can use the following shorthand:\
-"151r" for "one five one roll"\
-"115b" for "one one five bank"
+Single scoring dice:
 
-a single `+` will reroll the last token
+- `one` takes a 1 for 100 points.
+- `five` takes a 5 for 50 points.
 
-to try an upgrade to a free do `upgrade` and then the die you want to try to upgrade
-for the throw 1 1 2 2 3 4 this could be `upgrade four` or its shorthand `up 4`
+Sets of three use the plural face name: `ones`, `twos`, `threes`, `fours`, `fives`, or `sixes`. Add `es`, `eses`, or `eseses` for four, five, or six of a kind. For example:
 
-## Bot player syntax
-| command | effect | arguments | example|
-|-|-|-|-|
-| ?zilch \| ?z | create a game and join it
-| ?rapid \| ?r | create a rapid game and join it
-| ?turbo \| ?t | create a turbo game and join it
-| ?custom \| ?c | create a custom game and join it | amount | ?custom 5000
-| ?join \| ?j | join a gather
+- `threes` takes three 3s.
+- `threeses` takes four 3s.
+- `threeseses` takes five 3s.
+- `threeseseses` takes six 3s.
 
-## Statistic syntax
-Statistics can be requested by !stats, !stat or simply !s, arguments as follow
-|command|argument|effect|example|
-|-|-|-|-|
-| !all | @user | show all statistics for a user| !stat all @mICON
-| games | | get statistics about played games| !stat games
-| money || get statistics about players' money
-| highest|| find the highest score anyone ever got above the limit.
+Examples:
+
+```text
+one five five roll
+threes bank
+```
+
+Shortcuts:
+
+- `onro` means `one roll`.
+- `firo` means `five roll`.
+- `151r` means `one five one roll`.
+- `115b` means `one one five bank`.
+- `+` repeats the scoring dice from the previous roll and rolls again.
+- `roll?` randomly chooses between rolling and banking.
+
+Use `free` for a straight, three pairs, or a fresh six-die roll with no scoring dice. It scores the combination and rolls a new set.
+
+Once per fresh set of six dice, `upgrade <die>` or `up <die>` rerolls one selected die when changing it could create a free combination. For example:
+
+```text
+up 5
+upgrade four
+```
+
+## Bot player commands
+
+The optional bot player listens for these commands:
+
+| Command | Effect |
+| --- | --- |
+| `?zilch`, `?z` | Open a 10,000-point lobby. |
+| `?rapid`, `?r` | Open a 3,000-point lobby. |
+| `?turbo`, `?t` | Open a 500-point lobby. |
+| `?custom <limit>`, `?c <limit>` | Open a lobby with a custom limit. |
+| `?join`, `?j` | Join the open lobby. |
 
 ## Configuration
-to configure the bot, rename the config.sample.json to config.json
-- channels: array of channels bots should to respond to (keep in mind only one game can run at a time)
-- admins: array of user ids with privileges
-- Bot_Host: discord bot token for the host (game & statistics if enabled)
-- Bot_Player discord bot token for the bot player
 
-make sure the bots have the message intent activated.
+Copy `config.sample.jsonc` to `config.jsonc`, then configure:
 
-Enjoy!
+- `channels`: Discord channel IDs in which the host bot may respond. Only one game can run at a time.
+- `admins`: Discord user IDs allowed to reset a game.
+- `Bot_Host`: Discord token for the host bot.
+- `Bot_Player`: optional Discord token for the bot player. Remove this property or leave it empty to disable the player bot.
+- `alert_zilch`: emphasize consecutive Zilch alerts.
+- `alert_ending`: emphasize rolls during the final round.
+- `timeout_gather`: lobby timeout in milliseconds.
+- `timeout_turn`: turn timeout in milliseconds.
+
+Enable the Message Content intent for both Discord applications.
+
+## Development
+
+Install dependencies and validate the TypeScript source:
+
+```bash
+bun install
+bun x tsc --noEmit --incremental false
+```
+
+Run directly from TypeScript:
+
+```bash
+bun run zilch
+```
+
+Create the standalone Bun bundle used by the container:
+
+```bash
+bun build --target=bun bots.ts --outfile zilch.js
+```

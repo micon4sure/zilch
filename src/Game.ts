@@ -1,6 +1,5 @@
 import _ from 'lodash'
 
-import Database from './Database'
 import Token from './Token'
 import Turn from './Turn'
 import Player from './Player'
@@ -10,7 +9,7 @@ export enum Game_State {
   GATHER, RUNNING, ENDING
 }
 export enum Game_Event {
-  GAME, TURN, TOKEN, ROLL, REROLL, BANK, ZILCH, ELIMINATED, END
+  TURN, TOKEN, ROLL, BANK, END
 }
 
 /**
@@ -34,8 +33,6 @@ export default class Game implements Game_CallbackHandler {
   playerNum: number = -1;
   ender: Player;
   limit: number;
-  bot: boolean;
-  winner: number;
   timeout;
 
   /**
@@ -91,16 +88,18 @@ export default class Game implements Game_CallbackHandler {
     let didUpgrade = false;
     console.log(tokens)
     _.each(tokens, (token, index) => {
-      if (token == 'upgrade' || token == 'up') {
+      const normalizedToken = token.toLowerCase();
+      if (normalizedToken == 'upgrade' || normalizedToken == 'up') {
         if (!this.turn.upgradable) {
           this.send("No!")
           return false;
         }
         // check for die to upgrade in tokens
         let upgradeToken = null;
-        _.each(tokens, token => {
+        _.each(tokens, candidateToken => {
+          const normalizedCandidate = candidateToken.toLowerCase();
           _.each(['one', 'two', 'three', 'four', 'five', 'six'], (die, index) => {
-            if (token == die || token == (index + 1)) {
+            if (normalizedCandidate == die || normalizedCandidate == `${index + 1}`) {
               upgradeToken = die;
             }
           });
@@ -240,7 +239,6 @@ export default class Game implements Game_CallbackHandler {
         this.turn.upgradable = true;
         this.send('$' + this.turn.points + ' ($' + (this.player.score + this.turn.points) + ')');
         this.sendDice();
-        this.activateCallbacks(Game_Event.REROLL, { game: this });
         return;
       }
 
@@ -252,19 +250,15 @@ export default class Game implements Game_CallbackHandler {
         this.player.zilch++;
 
         if (this.player.zilch == 3) {
-          this.activateCallbacks(Game_Event.ZILCH, { game: this, penalty: -500 });
           this.sendDice("ZILCH x3! -$500.", true, true);
           this.player.score -= 500;
         } else if (this.player.zilch == 5) {
-          this.activateCallbacks(Game_Event.ZILCH, { game: this, penalty: -1000 });
           this.sendDice("ZILCH x5! -$1000.", true, true);
           this.player.score -= 1000;
         } else if (this.player.zilch == 6) {
           this.player.eliminated = true;
-          this.activateCallbacks(Game_Event.ELIMINATED, { game: this });
           this.sendDice("ZILCH x6! ELIMINATED!", true, true);
         } else {
-          this.activateCallbacks(Game_Event.ZILCH, { game: this, penalty: 0 });
           this.sendDice("ZILCH!", false, true);
         }
         this.next();
@@ -323,7 +317,6 @@ export default class Game implements Game_CallbackHandler {
         ? this.ender
         : highest;
 
-      this.winner = winner;
       this.send(`${winner.name} wins! ($${winner.score}).`);
       this.activateCallbacks(Game_Event.END, { game: this });
       return;
@@ -386,8 +379,6 @@ export default class Game implements Game_CallbackHandler {
    * @param player 
    */
   join(player: Player) {
-    if (player.bot)
-      this.bot = true;
     if (_.find(this.players, candidate => candidate.id == player.id)) return;
     this.players.push(player);
   }
@@ -398,7 +389,6 @@ export default class Game implements Game_CallbackHandler {
   start() {
     this.state = Game_State.RUNNING;
     this.playerNum = -1;
-    this.activateCallbacks(Game_Event.GAME, { game: this })
     this.next();
   }
 
